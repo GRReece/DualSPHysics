@@ -1,0 +1,265 @@
+
+
+ <DUALSPHYSICS4> Copyright (C) 2018 by
+ Dr Jose M. Dominguez, Dr Alejandro Crespo,
+ Prof. Moncho Gomez Gesteira, Orlando Garcia-Feal, Dr Anxo Barreiro
+ Dr Benedict Rogers, Dr Georgios Fourtakas, Dr Athanasios Mokos,
+ Prof. Peter Stansby, Dr Renato Vacondio, Dr Ricardo Canelas,
+ Dr Stephen Longshaw, Dr Corrado Altomare.
+
+ EPHYSLAB Environmental Physics Laboratory, Universidade de Vigo
+ School of Mechanical, Aerospace and Civil Engineering, University of Manchester
+
+ DualSPHysics is free software: you can redistribute it and/or
+ modify it under the terms of the GNU Lesser General Public License
+ as published by the Free Software Foundation, either version 2.1 of
+ the License, or (at your option) any later version.
+
+ DualSPHysics is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU Lesser General Public License for more details.
+
+ You should have received a copy of the GNU Lesser General Public License
+ along with DualSPHysics. If not, see <http://www.gnu.org/licenses/>.
+
+
+DualSPHysics4 v4.2.049 (03-05-2018)
+====================================
+Threads by host for parallel execution: 8
+[Initialising JSphCpuSingle  07-09-2018 12:53:50]
+ProgramFile=".../bin/windows/DualSPHysics4.2CPU_win64.exe"
+ExecutionDir=".../DualSPHysics/examples/CASE_AARON"
+XmlFile=".../CASE_AARON/CaseAaron_out/CaseAaron.xml"
+OutputDir=".../examples/CASE_AARON/CaseAaron_out"
+OutputDataDir=".../examples/CASE_AARON/CaseAaron_out"
+**Basic case configuration is loaded
+**Special case configuration is loaded
+Loading initial state of particles...
+Loaded particles: 3255
+MapRealPos(border)=(-0.005,-0.001375,-1.00137)-(0.305,0.001375,0.531375)
+MapRealPos(final)=(-0.005,-0.001375,-1.00137)-(0.305,0.001375,0.68465)
+**Initial state of particles is loaded
+**2D-Simulation parameters:
+CaseName="CaseAaron"
+RunName="CaseAaron"
+Simulate2DPosY=0
+PosDouble="1: Uses double and stores in single precision"
+SvTimers=True
+StepAlgorithm="Symplectic"
+Kernel="Wendland"
+Viscosity="Laminar+SPS"
+Visco=0.100000
+ViscoBoundFactor=1.000000
+DeltaSph="DynamicExt"
+DeltaSphValue=0.300000
+Shifting="Full"
+ShiftCoef=-2.000000
+ShiftTFS=1.500000
+RigidAlgorithm="None"
+FloatingCount=0
+CaseNp=3255
+CaseNbound=124
+CaseNfixed=124
+CaseNmoving=0
+CaseNfloat=0
+CaseNfluid=3131
+PeriodicActive="Axis-X"
+PeriodicXinc=(-0.31,0,0)
+Dx=0.01
+H=0.027500
+CoefficientH=1.94454
+CteB=112000.000000
+Gamma=7.000000
+RhopZero=1000.000000
+Cs0=28
+CFLnumber=0.100000
+DtIni=4e-06
+DtMin=4e-06
+DtAllParticles=False
+MassFluid=0.100000
+MassBound=0.100000
+Awen (Wendland)=736.528931
+Bwen (Wendland)=-133923.968750
+SpsSmag=0.000001
+SpsBlin=0.000000
+TimeMax=5
+TimePart=0.05
+Gravity=(0.800000,0.000000,0.000000)
+NpMinimum=438
+RhopOut=True
+RhopOutMin=700.000000
+RhopOutMax=1300.000000
+**Requested cpu memory for 3265 particles: 0.6 MB.
+CellOrder="XYZ"
+CellMode="2H"
+Hdiv=1
+MapCells=(8,1,31)
+DomCells=(8,1,31)
+DomCellCode="11_9_12"
+**JSphCpu: Requesting cpu memory for 3469 particles: 0.6 MB.
+**JSphCpu: Requesting cpu memory for 4530 particles: 0.8 MB.
+**CellDiv: Requested cpu memory for 4530 particles: 0.1 MB.
+**CellDiv: Requested cpu memory for 522 cells (CellMode=2H): 0.0 MB.
+ 
+RunMode="Pos-Double - OpenMP(Threads:8)"
+ 
+Particle summary:
+  Fixed....: 124  id:(0-123)   MKs:1 (11)
+  Moving...: 0
+  Floating.: 0
+  Fluid....: 3131  id:(124-3254)   MKs:2 (1-2)
+
+Total particles: 3255 (bound=124 (fx=124 mv=0 ft=0) fluid=3131)
+Total MK blocks: 3 (bound=1 (fx=1 mv=0 ft=0) fluid=2)
+ 
+Allocated memory in CPU: 968756 (0.92 MB)
+Part_0000        3255 particles successfully stored
+
+[Initialising simulation (10c0ijx3)  07-09-2018 12:53:50]
+PART       PartTime      TotalSteps    Steps    Time/Sec   Finish time        
+=========  ============  ============  =======  =========  ===================
+**JSphCpu: Requesting cpu memory for 5632 particles: 1.0 MB.
+**CellDiv: Requested cpu memory for 5632 particles: 0.2 MB.
+  Progress 0.73% in 30.1s. Estimated finish time: 07-09-2018 14:02:40
+Part_0001      0.050076           511      511    1004.38  07-09-2018 14:17:31
+Part_0002      0.100036          1020      509     850.57  07-09-2018 14:11:08
+Part_0003      0.150091          1530      510     866.33  07-09-2018 14:09:25
+Part_0004      0.200040          2039      509     854.28  07-09-2018 14:08:19
+Part_0005      0.250081          2549      510     850.47  07-09-2018 14:07:35
+Part_0006      0.300023          3058      509     768.05  07-09-2018 14:05:57
+Part_0007      0.350058          3568      510      93.24  07-09-2018 13:56:46
+Part_0008      0.400091          4078      510     786.44  07-09-2018 13:57:06
+Part_0009      0.450021          4587      509     301.91  07-09-2018 13:52:52
+Part_0010      0.500041          5097      510     266.80  07-09-2018 13:49:11
+Part_0011      0.550057          5607      510      96.66  07-09-2018 13:44:53
+Part_0012      0.600072          6117      510     101.41  07-09-2018 13:41:20
+Part_0013      0.650085          6627      510     146.70  07-09-2018 13:38:37
+Part_0014      0.700000          7136      509     125.95  07-09-2018 13:36:10
+Part_0015      0.750009          7646      510      94.93  07-09-2018 13:33:52
+Part_0016      0.800011          8156      510      97.47  07-09-2018 13:31:52
+Part_0017      0.850009          8666      510      95.60  07-09-2018 13:30:07
+Part_0018      0.900007          9176      510      97.17  07-09-2018 13:28:33
+Part_0019      0.950007          9686      510      91.73  07-09-2018 13:27:07
+Part_0020      1.000003         10196      510      93.90  07-09-2018 13:25:51
+Part_0021      1.050089         10707      511      91.98  07-09-2018 13:24:41
+Part_0022      1.100075         11217      510      91.52  07-09-2018 13:23:37
+Part_0023      1.150062         11727      510     100.13  07-09-2018 13:22:41
+Part_0024      1.200051         12237      510      91.60  07-09-2018 13:21:49
+Part_0025      1.250031         12747      510      92.86  07-09-2018 13:21:00
+Part_0026      1.300007         13257      510      95.15  07-09-2018 13:20:15
+Part_0027      1.350082         13768      511      93.02  07-09-2018 13:19:34
+Part_0028      1.400062         14278      510      93.50  07-09-2018 13:18:56
+Part_0029      1.450034         14788      510      93.66  07-09-2018 13:18:20
+Part_0030      1.500001         15298      510      98.15  07-09-2018 13:17:47
+Part_0031      1.550069         15809      511      91.51  07-09-2018 13:17:16
+Part_0032      1.600041         16319      510      99.30  07-09-2018 13:16:47
+Part_0033      1.650004         16829      510     104.15  07-09-2018 13:16:21
+Part_0034      1.700062         17340      511      92.10  07-09-2018 13:15:54
+Part_0035      1.750026         17850      510      92.12  07-09-2018 13:15:30
+Part_0036      1.800086         18361      511      94.08  07-09-2018 13:15:07
+Part_0037      1.850040         18871      510     110.30  07-09-2018 13:14:47
+Part_0038      1.900093         19382      511      91.68  07-09-2018 13:14:26
+Part_0039      1.950053         19892      510      91.12  07-09-2018 13:14:06
+Part_0040      2.000002         20402      510      92.91  07-09-2018 13:13:47
+Part_0041      2.050048         20913      511      91.42  07-09-2018 13:13:30
+Part_0042      2.100002         21423      510      98.33  07-09-2018 13:13:14
+Part_0043      2.150047         21934      511      92.84  07-09-2018 13:12:57
+Part_0044      2.200087         22445      511      93.35  07-09-2018 13:12:41
+Part_0045      2.250034         22955      510      93.38  07-09-2018 13:12:27
+Part_0046      2.300077         23466      511      93.59  07-09-2018 13:12:12
+Part_0047      2.350013         23976      510      94.68  07-09-2018 13:11:59
+Part_0048      2.400053         24487      511      91.55  07-09-2018 13:11:46
+Part_0049      2.450092         24998      511      94.34  07-09-2018 13:11:33
+Part_0050      2.500024         25508      510      97.76  07-09-2018 13:11:22
+Part_0051      2.550059         26019      511      98.44  07-09-2018 13:11:11
+Part_0052      2.600093         26530      511     101.55  07-09-2018 13:11:01
+Part_0053      2.650021         27040      510     111.88  07-09-2018 13:10:52
+Part_0054      2.700052         27551      511      91.95  07-09-2018 13:10:41
+Part_0055      2.750081         28062      511      92.11  07-09-2018 13:10:31
+Part_0056      2.800005         28572      510     100.75  07-09-2018 13:10:23
+Part_0057      2.850034         29083      511      92.17  07-09-2018 13:10:14
+Part_0058      2.900056         29594      511      97.71  07-09-2018 13:10:04
+Part_0059      2.950074         30105      511     111.91  07-09-2018 13:09:57
+Part_0060      3.000003         30615      510      98.63  07-09-2018 13:09:50
+Part_0061      3.050018         31126      511      98.70  07-09-2018 13:09:42
+Part_0062      3.100035         31637      511      91.86  07-09-2018 13:09:35
+Part_0063      3.150057         32148      511      92.22  07-09-2018 13:09:26
+Part_0064      3.200067         32659      511      92.07  07-09-2018 13:09:19
+Part_0065      3.250084         33170      511      93.20  07-09-2018 13:09:11
+Part_0066      3.300097         33681      511      89.47  07-09-2018 13:09:05
+Part_0067      3.350007         34191      510      89.55  07-09-2018 13:08:57
+Part_0068      3.400024         34702      511      92.19  07-09-2018 13:08:51
+Part_0069      3.450028         35213      511      92.77  07-09-2018 13:08:45
+Part_0070      3.500038         35724      511      89.27  07-09-2018 13:08:38
+Part_0071      3.550094         36239      515     100.59  07-09-2018 13:08:33
+Part_0072      3.600021         36760      521      91.16  07-09-2018 13:08:27
+Part_0073      3.650027         37289      529      92.37  07-09-2018 13:08:21
+Part_0074      3.700089         37826      537      93.76  07-09-2018 13:08:16
+Part_0075      3.750037         38369      543     103.73  07-09-2018 13:08:11
+Part_0076      3.800051         38920      551      95.21  07-09-2018 13:08:06
+Part_0077      3.850035         39478      558      96.75  07-09-2018 13:08:01
+Part_0078      3.900003         40043      565      98.16  07-09-2018 13:07:57
+Part_0079      3.950025         40616      573      97.68  07-09-2018 13:07:52
+Part_0080      4.000029         41196      580     109.60  07-09-2018 13:07:48
+Part_0081      4.050004         41783      587     104.82  07-09-2018 13:07:44
+Part_0082      4.100040         42378      595     119.36  07-09-2018 13:07:41
+Part_0083      4.150057         42980      602     104.71  07-09-2018 13:07:38
+Part_0084      4.200042         43589      609     118.67  07-09-2018 13:07:35
+Part_0085      4.250014         44205      616     106.78  07-09-2018 13:07:32
+Part_0086      4.300035         44829      624     111.04  07-09-2018 13:07:28
+Part_0087      4.350040         45460      631     110.52  07-09-2018 13:07:26
+Part_0088      4.400019         46098      638     115.38  07-09-2018 13:07:23
+Part_0089      4.450054         46744      646     111.39  07-09-2018 13:07:20
+Part_0090      4.500069         47397      653     116.06  07-09-2018 13:07:17
+Part_0091      4.550058         48057      660     114.00  07-09-2018 13:07:15
+Part_0092      4.600033         48724      667     126.37  07-09-2018 13:07:13
+Part_0093      4.650054         49399      675     121.55  07-09-2018 13:07:11
+Part_0094      4.700062         50081      682     151.06  07-09-2018 13:07:11
+Part_0095      4.750041         50770      689     129.61  07-09-2018 13:07:08
+Part_0096      4.800007         51466      696     124.60  07-09-2018 13:07:06
+Part_0097      4.850020         52170      704     121.99  07-09-2018 13:07:04
+Part_0098      4.900015         52881      711     124.53  07-09-2018 13:07:03
+Part_0099      4.950060         53600      719     133.99  07-09-2018 13:07:01
+Part_0100      5.000014         54325      725     126.65  07-09-2018 13:07:01
+
+[Simulation finished  07-09-2018 13:07:01]
+Particles of simulation (initial): 3255
+DTs adjusted to DtMin............: 0
+Excluded particles...............: 0
+Total Runtime....................: 790.981812 sec.
+Simulation Runtime...............: 790.941162 sec.
+Time per second of simulation....: 158.187775 sec.
+Steps per second.................: 68.683998
+Steps of simulation..............: 54325
+PART files.......................: 101
+Maximum number of particles......: 4412
+Maximum number of cells..........: 224
+CPU Memory.......................: 1202380 (1.15 MB)
+ 
+[CPU Timers]
+VA-Init..........................: 0.040669 sec.
+NL-Limits........................: 3.650639 sec.
+NL-MakeSort......................: 5.945089 sec.
+NL-SortData......................: 7.210781 sec.
+NL-OutCheck......................: 0.001984 sec.
+CF-PreForces.....................: 13.335338 sec.
+CF-Forces........................: 730.580627 sec.
+SU-Shifting......................: 6.881325 sec.
+SU-ComputeStep...................: 16.307835 sec.
+SU-Floating......................: 0.000000 sec.
+SU-Motion........................: 0.000000 sec.
+SU-Periodic......................: 5.282535 sec.
+SU-ResizeNp......................: 0.000870 sec.
+SU-SavePart......................: 1.666301 sec.
+ 
+[Output files]
+- CfgInit_Domain.vtk..: Saves the limits of the case and the simulation domain limits.
+- CfgInit_MapCells.vtk: Saves the cell division of the simulation domain.
+- PartInfo.ibi4.......: Binary file with execution information for each instant (input for PartInfo program).
+- PartOut_???.obi4....: Binary file with particles excluded during simulation (input for PartVtkOut program).
+- Part_????.bi4.......: Binary file with particle data in different instants.
+- Part_Head.ibi4......: Binary file with basic information of simulation data.
+- Run.csv.............: One line CSV file with execution parameters and other simulation data.
+- Run.out.............: Log file of the simulation.
+ 

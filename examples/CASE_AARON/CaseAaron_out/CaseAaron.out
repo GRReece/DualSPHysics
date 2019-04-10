@@ -1,0 +1,100 @@
+
+
+ <GENCASE4>  Copyright (C) 2018 by Dr Jose M. Dominguez
+ All rights reserved.
+
+ DualSPHysics is an international collaboration between University of Vigo 
+ (Spain) and University of Manchester (UK). 
+
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions
+ are met:
+ * Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+ * Neither the name of the DualSPHysics nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER BE LIABLE FOR ANY
+ DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+
+
+GenCase4 v4.0.068 (27-04-2018) 
+================================
+OmpThreads: 8
+
+[LoadXML]
+List: MAIN
+
+Total operations: 9
+[LoadXML-End  time:0.001s]
+
+[Draw]
+Mk size: 1 bytes
+Case limits: (-0.2,0,-1) - (1.6,0,2)
+Distance between points: 0.01
+Case domain: (0,0,0)-(179,0,299)
+Domain points: 180 x 1 x 300 = 54000
+Case parts: 1 x 300z
+Memory: 0.00Gb 0.05Mb (54000)
+
+> MAIN
+FileShapes> _Actual.vtk  shapes:25  points:10   (time:0.001s)
+<MAIN (Operations= 6+3+1 = 10)
+
+Triangles: 24 (0 ignored)
+[Draw-End  time:0.103s]
+
+[PreparePoints]
+Computing Vtk-Cells data...  (time:0.002s)
+BitSizeTot: 16 (2 + 5+1+8)
+Points loaded: 3255
+Sorting points by X...
+Sorting points by Mk...
+
+List of Points:
+Points -> Fixed-Boundary particles:
+  block[  0] (mk: 11):    124  -->     124
+Points -> Fluid particles:
+  block[  1] (mk:  1):   3100  -->    3100
+  block[  2] (mk:  2):     31  -->      31
+
+Particle summary:
+  Fixed....: 124  id:(0-123)   MKs:1 (11)
+  Moving...: 0
+  Floating.: 0
+  Fluid....: 3131  id:(124-3254)   MKs:2 (1-2)
+
+Total particles: 3255 (bound=124 (fx=124 mv=0 ft=0) fluid=3131)
+Total MK blocks: 3 (bound=1 (fx=1 mv=0 ft=0) fluid=2)
+
+Maximum depth: 0 (fixed)
+Speed of sound: max(coefsound*speedsystem,10*sqrt(g*depth))
+Speed of sound: 0 max(0,0)
+
+Coefh:1.944544 (hdp:2.750000)
+
+[PreparePoints-End  time:0.039s]
+
+[SaveCase2D]
+CaseAaron_out/CaseAaron_MkCells.vtk  (time:0.001s, shapes:3, points:12)
+CaseAaron.bi4<double>  (time:0.001s)
+CaseAaron_out/CaseAaron_All.vtk  (time: 0.001s)
+CaseAaron_out/CaseAaron_Bound.vtk  (time: 0.001s)
+CaseAaron_out/CaseAaron_Fluid.vtk  (time: 0.001s)
+CaseAaron_out/CaseAaron.xml  (time:0.006s)
+
+Save files time: 0.010s
+[SaveCase2D-End  time:0.012s]
+

@@ -1,0 +1,152 @@
+
+
+ <DUALSPHYSICS4> Copyright (C) 2016 by
+ Dr Jose M. Dominguez, Dr Alejandro Crespo,
+ Prof. Moncho Gomez Gesteira, Dr Anxo Barreiro,
+ Dr Benedict Rogers, Dr Georgios Fourtakas, Dr Athanasios Mokos,
+ Dr Renato Vacondio, Dr Ricardo Canelas,
+ Dr Stephen Longshaw, Dr Corrado Altomare.
+
+ EPHYSLAB Environmental Physics Laboratory, Universidade de Vigo
+ School of Mechanical, Aerospace and Civil Engineering, University of Manchester
+
+ DualSPHysics is free software: you can redistribute it and/or
+ modify it under the terms of the GNU General Public License as
+ published by the Free Software Foundation, either version 3 of
+ the License, or (at your option) any later version.
+
+ DualSPHysics is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License,
+ along with DualSPHysics. If not, see <http://www.gnu.org/licenses/>.
+
+
+DualSPHysics4 v4.0.056 (18-05-2016)
+====================================
+[Select CUDA Device]
+Device 0: "GeForce GTX 1070"
+  Compute capability:        6.1
+  Multiprocessors:           15 (-15 cores)
+  Memory global:             8192 MB
+  Clock rate:                1.78 GHz
+  Run time limit on kernels: No
+  ECC support enabled:       No
+
+[GPU Hardware]
+Device default: 0  "GeForce GTX 1070"
+Compute capability: 6.1
+Memory global: 8192 MB
+Memory shared: 49152 Bytes
+[Initialising JSphGpuSingle v0.70  30-08-2017 10:50:35]
+**Basic case configuration is loaded
+**Special case configuration is loaded
+Loading initial state of particles...
+Loaded particles: 20302
+MapRealPos(border)=(-0.00353553,-0.00353553,-1.00354)-(10.0035,0.00353553,5.00354)
+MapRealPos(final)=(-0.00353553,-0.00353553,-1.00354)-(10.0035,0.00353553,8.00707)
+**Initial state of particles is loaded
+**2D-Simulation parameters:
+CaseName="CaseMovingSquare"
+RunName="CaseMovingSquare"
+PosDouble="1: Uses double and stores in single precision"
+SvTimers=True
+StepAlgorithm="Symplectic"
+Kernel="Wendland"
+Viscosity="Artificial"
+Visco=0.000010
+ViscoBoundFactor=1.000000
+DeltaSph="Dynamic"
+DeltaSphValue=0.100000
+Shifting="None"
+RigidAlgorithm="None"
+FloatingCount=0
+CaseNp=20302
+CaseNbound=1042
+CaseNfixed=601
+CaseNmoving=441
+CaseNfloat=0
+CaseNfluid=19260
+PeriodicActive=0
+Dx=0.05
+H=0.070711
+CoefficientH=1
+CteB=112000.000000
+Gamma=7.000000
+RhopZero=1000.000000
+Cs0=28
+CFLnumber=0.200000
+DtIni=0.00252538
+DtMin=2.52538e-005
+DtAllParticles=False
+MassFluid=2.500000
+MassBound=2.500000
+Bwen (wendland)=-7877.734375
+TimeMax=0.02
+TimePart=0.01
+Gravity=(0.000000,0.000000,0.000000)
+NpMinimum=1042
+RhopOut=True
+RhopOutMin=700.000000
+RhopOutMax=1300.000000
+**Requested gpu memory for 20302 particles: 2.9 MB.
+CellOrder="XYZ"
+CellMode="2H"
+Hdiv=1
+MapCells=(71,1,64)
+DomCells=(71,1,64)
+DomCellCode="13_7_12"
+ 
+BlockSize calculation mode: Empirical calculation.
+  BsForcesBound=Dynamic (45 regs)
+  BsForcesFluid=Dynamic (54 regs)
+ 
+**CellDiv: Requested gpu memory for 21317 particles: 0.2 MB.
+**CellDiv: Requested gpu memory for 5472 cells (CellMode=2H): 0.1 MB.
+RunMode="Pos-Double, Single-Gpu"
+Allocated memory in CPU: 1915180 (1.83 MB)
+Allocated memory in GPU: 3348860 (3.19 MB)
+Part_0000        20302 particles successfully stored
+
+[Initialising simulation (mmxe3v45)  30-08-2017 10:50:35]
+PART       PartTime      TotalSteps    Steps    Time/Sec   Finish time        
+=========  ============  ============  =======  =========  ===================
+Part_0001      0.010293            19       19       8.02  30-08-2017 10:50:35
+Part_0002      0.020006            50       31       8.98  30-08-2017 10:50:35
+
+[Simulation finished  30-08-2017 10:50:35]
+Particles of simulation (initial): 20302
+DTs adjusted to DtMin............: 0
+Excluded particles...............: 0
+Total Runtime....................: 0.210581 sec.
+Simulation Runtime...............: 0.170131 sec.
+Time per second of simulation....: 8.504147 sec.
+Steps per second.................: 293.890991
+Steps of simulation..............: 50
+PART files.......................: 3
+Maximum number of particles......: 20302
+Maximum number of cells..........: 2627
+CPU Memory.......................: 1915180 (1.83 MB)
+GPU Memory.......................: 3348860 (3.19 MB)
+
+[GPU Timers]
+VA-Init..........................: 0.006320 sec.
+NL-Limits........................: 0.006449 sec.
+NL-PreSort.......................: 0.000426 sec.
+NL-RadixSort.....................: 0.019432 sec.
+NL-CellBegin.....................: 0.013221 sec.
+NL-SortData......................: 0.001521 sec.
+NL-OutCheck......................: 0.000135 sec.
+CF-PreForces.....................: 0.012084 sec.
+CF-Forces........................: 0.051795 sec.
+SU-Shifting......................: 0.000000 sec.
+SU-ComputeStep...................: 0.002751 sec.
+SU-Floating......................: 0.000000 sec.
+SU-Motion........................: 0.003635 sec.
+SU-Periodic......................: 0.000000 sec.
+SU-ResizeNp......................: 0.000000 sec.
+SU-DownData......................: 0.000837 sec.
+SU-SavePart......................: 0.000002 sec.
+ 

@@ -54,7 +54,8 @@ void JCfgRun::Reset(){
   DomainFixedMin=DomainFixedMax=TDouble3(0);
   TStep=STEP_None; VerletSteps=-1;
   TKernel=KERNEL_None;
-  TVisco=VISCO_None; Visco=0; ViscoBoundFactor=-1;
+  /***GRR_EDIT visco array***/
+  TVisco = VISCO_None; /*Visco[0] = 0; Visco[1] = 0;*/ Visco = 0; ViscoBoundFactor = -1;
   DeltaSph=-1;
   Shifting=-1;
   SvRes=true; SvDomainVtk=false;
@@ -379,13 +380,29 @@ void JCfgRun::LoadOpts(string *optlis,int optn,int lv,string file){
       else if(txword=="WENDLAND")TKernel=KERNEL_Wendland;
       else if(txword=="GAUSSIAN")TKernel=KERNEL_Gaussian;
       else if(txword=="VISCOART"){ 
-        Visco=float(atof(txoptfull.c_str())); 
-        if(Visco>10)ErrorParm(opt,c,lv,file);
+		/***GRR_EDIT two viscosities***/
+		//int pos = int(txoptfull.find(","));
+		//std::string txoptfull0 = txoptfull.substr(0, pos - 1);
+		//std::string txoptfull1 = txoptfull.substr(pos+1);
+		//Visco[0] = float(atof(txoptfull0.c_str()));
+		//Visco[1] = float(atof(txoptfull1.c_str()));
+		Visco=float(atof(txoptfull.c_str())); 
+		if (Visco > 10)ErrorParm(opt, c, lv, file);
+		//if (Visco[0] > 10)ErrorParm(opt, c, lv, file);
+		//if (Visco[1]>10)ErrorParm(opt, c, lv, file);
         TVisco=VISCO_Artificial;
       }
       else if(txword=="VISCOLAMSPS"){ 
+		/***GRR_EDIT two viscosities***/
+		//int pos = int(txoptfull.find(","));
+		//std::string txoptfull0 = txoptfull.substr(0, pos - 1);
+		//std::string txoptfull1 = txoptfull.substr(pos + 1);
+		//Visco[0] = float(atof(txoptfull0.c_str()));
+		//Visco[1] = float(atof(txoptfull1.c_str()));
         Visco=float(atof(txoptfull.c_str())); 
         if(Visco>0.001)ErrorParm(opt,c,lv,file);
+		//if (Visco[0]>0.001)ErrorParm(opt, c, lv, file);
+		//if (Visco[1]>0.001)ErrorParm(opt, c, lv, file);
         TVisco=VISCO_LaminarSPS;
       }
       else if(txword=="VISCOBOUNDFACTOR"){ 

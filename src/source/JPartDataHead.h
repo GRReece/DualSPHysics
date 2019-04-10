@@ -111,7 +111,7 @@ private:
   tdouble3 PeriZinc;     ///<Value that is added at the outer limit to modify the position.
 
   TpVisco ViscoType;     ///<Viscosity type: Artificial,... 
-  float ViscoValue;      ///<Viscosity value. 
+  float ViscoValue;      ///<Viscosity value.
   float ViscoBoundFactor;///<For boundary interaction use ViscoValue*ViscoBoundFactor.
 
   bool Splitting;        ///<Use of Splitting.
@@ -150,7 +150,8 @@ public:
   void ConfigSimNp(bool npdynamic=false,bool reuseids=false);
   void ConfigSimMap(tdouble3 mapposmin,tdouble3 mapposmax);
   void ConfigSimPeri(TpPeri tperi,tdouble3 perixinc,tdouble3 periyinc,tdouble3 perizinc);
-  void ConfigVisco(JPartDataHead::TpVisco type,float value,float boundfactor);
+  void ConfigVisco(JPartDataHead::TpVisco type,float value,float boundfactor); /*GRR*/
+  //void ConfigVisco(JPartDataHead::TpVisco type, float value[2], float boundfactor);
   void ConfigSplitting(bool splitting);
 
   static std::string GetFileName(std::string dir="");
@@ -206,7 +207,9 @@ public:
   tdouble3 GetPeriZinc()const{ return(PeriZinc);   };
 
   TpVisco GetViscoType()       const{ return(ViscoType);        };
-  float   GetViscoValue()      const{ return(ViscoValue);       };
+  float   GetViscoValue()      const{ return(ViscoValue);       };	/*GRR*/
+  //float   GetViscoValue1()      const { return(ViscoValue[0]); };
+  //float   GetViscoValue2()      const { return(ViscoValue[1]); };
   float   GetViscoBoundFactor()const{ return(ViscoBoundFactor); };
 
   bool GetSplitting()const{ return(Splitting); };

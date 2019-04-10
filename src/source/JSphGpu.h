@@ -90,12 +90,14 @@ protected:
   tdouble2 *Posxy;
   double *Posz;
   tfloat4 *Velrhop;
+  float *Visc;	/*GRR*/
 
   //-Auxiliary variables for the conversion (size=ParticlesSize).
   //-Variables auxiliares para conversion (size=ParticlesSize).
   tdouble3 *AuxPos;
   tfloat3 *AuxVel; 
   float *AuxRhop;
+  float *AuxVisc;	/*GRR*/
 
   unsigned GpuParticlesSize;  ///<Number of particles for which GPU memory was allocated. | Numero de particulas para las cuales se reservo memoria en gpu.
   llong MemGpuParticles;      ///<Allocated GPU memory for arrays with particle data. | Mermoria reservada para vectores de datos de particulas.
@@ -115,14 +117,17 @@ protected:
   double2 *Posxyg;
   double *Poszg;
   float4 *Velrhopg;
+  float *Viscg;		/*GRR*/
     
   //-Variables for compute step: VERLET.
   float4 *VelrhopM1g;  ///<Verlet: in order to keep previous values. | Verlet: para guardar valores anteriores.
+  float *ViscM1g;	/*GRR*/
 
   //-Variables for compute step: SYMPLECTIC.
   double2 *PosxyPreg;  ///<Sympletic: in order to keep previous values. | Sympletic: para guardar valores en predictor.
   double *PoszPreg;
   float4 *VelrhopPreg;
+  float *ViscPreg;	/*GRR*/
 
   //-Variables for floating bodies.
   unsigned *FtRidpg;      ///<Identifier to access to the particles of the floating object [CaseNfloat].
@@ -153,6 +158,7 @@ protected:
   float *ViscDtg;
   float3 *Aceg;      ///<Accumulates acceleration of the particles. | Acumula fuerzas de interaccion.
   float *Arg; 
+  float *Aviscg;	/*GRR*/
   float *Deltag;     ///<Accumulates adjustment of Delta-SPH with DELTA_DynamicExt. | Acumula ajuste de Delta-SPH con DELTA_DynamicExt.
 
   float3 *ShiftPosg;    ///<Particle displacement using Shifting.
@@ -252,12 +258,12 @@ public:
 //-Functions for debug.
 //----------------------
 public:
-  void DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pini,unsigned pfin,unsigned cellcode,const double2 *posxyg,const double *poszg,const unsigned *idpg,const unsigned *dcelg,const typecode *codeg,const float4 *velrhopg,const float4 *velrhopm1g,const float3 *aceg);
-  void DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pini,unsigned pfin,bool idp,bool vel,bool rhop,bool code);
-  void DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pini,unsigned pfin,const float3 *posg,const byte *checkg=NULL,const unsigned *idpg=NULL,const float3 *velg=NULL,const float *rhopg=NULL);
-  void DgSaveCsvParticlesGpu(std::string filename,int numfile,unsigned pini,unsigned pfin,std::string head,const float3 *posg=NULL,const unsigned *idpg=NULL,const float3 *velg=NULL,const float *rhopg=NULL,const float *arg=NULL,const float3 *aceg=NULL,const float3 *vcorrg=NULL);
-  void DgSaveCsvParticlesGpu2(std::string filename,int numfile,unsigned pini,unsigned pfin,std::string head,const float3 *posg=NULL,const unsigned *idpg=NULL,const float3 *velg=NULL,const float *rhopg=NULL,const float4 *pospres=NULL,const float4 *velrhop=NULL);
-  void DgSaveCsvParticles2(std::string filename,int numfile,unsigned pini,unsigned pfin,std::string head,const tfloat3 *pos=NULL,const unsigned *idp=NULL,const tfloat3 *vel=NULL,const float *rhop=NULL,const tfloat4 *pospres=NULL,const tfloat4 *velrhop=NULL);
+  void DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pini,unsigned pfin,unsigned cellcode,const double2 *posxyg,const double *poszg,const unsigned *idpg,const unsigned *dcelg,const typecode *codeg,const float4 *velrhopg,const float4 *velrhopm1g,const float *viscg/*GRR*/,const float *viscm1g/*GRR*/,const float3 *aceg);
+  void DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pini,unsigned pfin,bool idp,bool vel,bool rhop,bool visc/*GRR*/,bool code);
+  void DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pini,unsigned pfin,const float3 *posg,const byte *checkg=NULL,const unsigned *idpg=NULL,const float3 *velg=NULL,const float *rhopg=NULL,const float *viscg=NULL/*GRR*/);
+  void DgSaveCsvParticlesGpu(std::string filename,int numfile,unsigned pini,unsigned pfin,std::string head,const float3 *posg=NULL,const unsigned *idpg=NULL,const float3 *velg=NULL,const float *rhopg=NULL,const float *viscg=NULL/*GRR*/,const float *arg=NULL,const float3 *aceg=NULL,const float3 *vcorrg=NULL);
+  void DgSaveCsvParticlesGpu2(std::string filename,int numfile,unsigned pini,unsigned pfin,std::string head,const float3 *posg=NULL,const unsigned *idpg=NULL,const float3 *velg=NULL,const float *rhopg=NULL,const float *viscg=NULL/*GRR*/,const float4 *pospres=NULL,const float4 *velrhop=NULL);
+  void DgSaveCsvParticles2(std::string filename,int numfile,unsigned pini,unsigned pfin,std::string head,const tfloat3 *pos=NULL,const unsigned *idp=NULL,const tfloat3 *vel=NULL,const float *rhop=NULL,const float *visc=NULL/*GRR*/,const tfloat4 *pospres=NULL,const tfloat4 *velrhop=NULL);
 
 };
 

@@ -125,7 +125,8 @@ void JSph::InitVars(){
   TVisco=VISCO_None;
   TDeltaSph=DELTA_None; DeltaSph=0;
   TShifting=SHIFT_None; ShiftCoef=ShiftTFS=0;
-  Visco=0; ViscoBoundFactor=1;
+  /***GRR 2 component viscosity***/
+  /*Visco[0]=0; Visco[1] = 0;*/ Visco = 0; ViscoBoundFactor = 1;
   UseDEM=false;  //(DEM)
   delete[] DemData; DemData=NULL;  //(DEM)
   RhopOut=true; RhopOutMin=700; RhopOutMax=1300;
@@ -378,7 +379,9 @@ void JSph::LoadConfig(const JCfgRun *cfg){
   if(cfg->TStep)TStep=cfg->TStep;
   if(cfg->VerletSteps>=0)VerletSteps=cfg->VerletSteps;
   if(cfg->TKernel)TKernel=cfg->TKernel;
-  if(cfg->TVisco){ TVisco=cfg->TVisco; Visco=cfg->Visco; }
+  if (cfg->TVisco) {
+	  TVisco = cfg->TVisco; Visco = cfg->Visco;
+  }
   if(cfg->ViscoBoundFactor>=0)ViscoBoundFactor=cfg->ViscoBoundFactor;
   if(cfg->DeltaSph>=0){
     DeltaSph=cfg->DeltaSph;
@@ -464,7 +467,7 @@ void JSph::LoadCaseConfig(){
     case 2:  TVisco=VISCO_LaminarSPS;  break;
     default: RunException(met,"Viscosity treatment is not valid.");
   }
-  Visco=eparms.GetValueFloat("Visco");
+  Visco = eparms.GetValueFloat("Visco");
   ViscoBoundFactor=eparms.GetValueFloat("ViscoBoundFactor",true,1.f);
   string filevisco=eparms.GetValueStr("ViscoTime",true);
   if(!filevisco.empty()){
@@ -553,14 +556,19 @@ void JSph::LoadCaseConfig(){
   //-Predefined constantes.
   if(ctes.GetEps()!=0)Log->PrintWarning("Eps value is not used (this correction is deprecated).");
   H=(float)ctes.GetH();
-  CteB=(float)ctes.GetB();
+  //CteB=(float)ctes.GetB(); /*GRR*/
   Gamma=(float)ctes.GetGamma();
+
   RhopZero=(float)ctes.GetRhop0();
   CFLnumber=(float)ctes.GetCFLnumber();
   Dp=ctes.GetDp();
   Gravity=ToTFloat3(ctes.GetGravity());
   MassFluid=(float)ctes.GetMassFluid();
   MassBound=(float)ctes.GetMassBound();
+
+  //GRR
+  Cs0 = 12.0f*1.0f;	//cst*v_max
+  CteB = (float(Cs0*Cs0)*RhopZero) / Gamma;
 
   //-Particle data.
   CaseNp=parts.Count();
@@ -763,7 +771,8 @@ void JSph::ConfigConstants(bool simulate2d){
   //-Computation of constants.
   const double h=H;
   Delta2H=float(h*2*DeltaSph);
-  Cs0=sqrt(double(Gamma)*double(CteB)/double(RhopZero));
+  //GRR
+  //Cs0=sqrt(double(Gamma)*double(CteB)/double(RhopZero));
   if(!DtIni)DtIni=h/Cs0;
   if(!DtMin)DtMin=(h/Cs0)*CoefDtMin;
   Dosh=float(h*2); 
@@ -1429,7 +1438,7 @@ void JSph::PrintSizeNp(unsigned np,llong size)const{
 /// Visualiza cabeceras de PARTs.
 //==============================================================================
 void JSph::PrintHeadPart(){
-  Log->Print("PART       PartTime      TotalSteps    Steps    Time/Sec   Finish time        ");
+  Log->Print("PART       PartTime      TotalSteps    Steps    Time/Sec   Finish time        ");		/*GRR can add steady state measure here*/
   Log->Print("=========  ============  ============  =======  =========  ===================");
   fflush(stdout);
 }
@@ -1503,9 +1512,9 @@ void JSph::ConfigSaveData(unsigned piece,unsigned pieces,std::string div){
 /// Almacena nuevas particulas excluidas hasta la grabacion del proximo PART.
 //==============================================================================
 void JSph::AddParticlesOut(unsigned nout,const unsigned *idp,const tdouble3 *pos
-  ,const tfloat3 *vel,const float *rhop,const typecode *code)
+  ,const tfloat3 *vel,const float *rhop,/*const float *visc/*GRR*/const typecode *code)
 {
-  PartsOut->AddParticles(nout,idp,pos,vel,rhop,code);
+  PartsOut->AddParticles(nout,idp,pos,vel,rhop,/*visc/*GRR*/code);
 }
 
 //==============================================================================
@@ -1576,7 +1585,7 @@ tfloat3* JSph::GetPointerDataFloat3(unsigned n,const tdouble3* v)const{
 /// Stores files of particle data.
 /// Graba los ficheros de datos de particulas.
 //==============================================================================
-void JSph::SavePartData(unsigned npok,unsigned nout,const unsigned *idp,const tdouble3 *pos,const tfloat3 *vel,const float *rhop,unsigned ndom,const tdouble3 *vdom,const StInfoPartPlus *infoplus){
+void JSph::SavePartData(unsigned npok,unsigned nout,const unsigned *idp,const tdouble3 *pos,const tfloat3 *vel,const float *rhop,const float *visc /*GRR*/,unsigned ndom,const tdouble3 *vdom,const StInfoPartPlus *infoplus){
   //-Stores particle data and/or information in bi4 format.
   //-Graba datos de particulas y/o informacion en formato bi4.
   if(DataBi4){
@@ -1618,6 +1627,7 @@ void JSph::SavePartData(unsigned npok,unsigned nout,const unsigned *idp,const td
         for(unsigned p=0;p<npok;p++)press[p]=(idp[p]>=CaseNbound? CteB*(pow(rhop[p]/RhopZero,Gamma)-1.0f): 0.f);
         DataBi4->AddPartData("Pressure",npok,press);
       }
+	  if(visc) DataBi4->AddPartData("Viscosity",npok,visc);		/*GRR*/
       DataBi4->SaveFilePart();
       delete[] press; press=NULL;//-Memory must to be deallocated after saving file because DataBi4 uses this memory space.
     }
@@ -1635,11 +1645,12 @@ void JSph::SavePartData(unsigned npok,unsigned nout,const unsigned *idp,const td
       type[p]=(id>=CaseNbound? 3: (id<CaseNfixed? 0: (id<CaseNpb? 1: 2)));
     }
     //-Defines fields to be stored.
-    JFormatFiles2::StScalarData fields[8];
+    JFormatFiles2::StScalarData fields[9]/*[8]*/;		/*GRR*/
     unsigned nfields=0;
     if(idp){   fields[nfields]=JFormatFiles2::DefineField("Idp" ,JFormatFiles2::UInt32 ,1,idp);   nfields++; }
     if(vel){   fields[nfields]=JFormatFiles2::DefineField("Vel" ,JFormatFiles2::Float32,3,vel);   nfields++; }
     if(rhop){  fields[nfields]=JFormatFiles2::DefineField("Rhop",JFormatFiles2::Float32,1,rhop);  nfields++; }
+	if(visc){  fields[nfields]=JFormatFiles2::DefineField("Visc",JFormatFiles2::Float32,1,visc);  nfields++; }		/*GRR*/
     if(type){  fields[nfields]=JFormatFiles2::DefineField("Type",JFormatFiles2::UChar8 ,1,type);  nfields++; }
     if(SvData&SDAT_Vtk)JFormatFiles2::SaveVtk(DirDataOut+fun::FileNameSec("PartVtk.vtk",Part),npok,posf3,nfields,fields);
     if(SvData&SDAT_Csv)JFormatFiles2::SaveCsv(DirDataOut+fun::FileNameSec("PartCsv.csv",Part),CsvSepComa,npok,posf3,nfields,fields);
@@ -1669,7 +1680,7 @@ void JSph::SavePartData(unsigned npok,unsigned nout,const unsigned *idp,const td
 /// Generates data output files.
 /// Genera los ficheros de salida de datos.
 //==============================================================================
-void JSph::SaveData(unsigned npok,const unsigned *idp,const tdouble3 *pos,const tfloat3 *vel,const float *rhop
+void JSph::SaveData(unsigned npok,const unsigned *idp,const tdouble3 *pos,const tfloat3 *vel,const float *rhop,const float *visc /*GRR*/
   ,unsigned ndom,const tdouble3 *vdom,const StInfoPartPlus *infoplus)
 {
   const char met[]="SaveData";
@@ -1683,7 +1694,7 @@ void JSph::SaveData(unsigned npok,const unsigned *idp,const tdouble3 *pos,const 
   AddOutCount(noutpos,noutrhop,noutmove);
 
   //-Stores data files of particles.
-  SavePartData(npok,nout,idp,pos,vel,rhop,ndom,vdom,infoplus);
+  SavePartData(npok,nout,idp,pos,vel,rhop,visc/*GRR*/,ndom,vdom,infoplus);
 
   //-Reinitialises limits of dt. | Reinicia limites de dt.
   PartDtMin=DBL_MAX; PartDtMax=-DBL_MAX;
@@ -1696,7 +1707,17 @@ void JSph::SaveData(unsigned npok,const unsigned *idp,const tdouble3 *pos,const 
     TimerSim.Stop();
     double tcalc=TimerSim.GetElapsedTimeD()/1000;
     double tleft=(tcalc/(TimeStep-TimeStepIni))*(TimeMax-TimeStep);
-    Log->Printf("Part%s  %12.6f  %12d  %7d  %9.2f  %14s",suffixpartx.c_str(),TimeStep,(Nstep+1),Nstep-PartNstep,tseg,fun::GetDateTimeAfter(int(tleft)).c_str());
+	/***GRR measure of total energy for steady state***/
+	const int n = int(npok);
+	tfloat3 v;
+	float v2=0.0;
+	for (int c = 0; c < n; c++)
+	{
+		//if (byte *type = new byte[npok]) //only for fluid particles
+		v = vel[c];
+		v2 += v.x*v.x + v.y*v.y + v.z*v.z;
+	}/**/
+    Log->Printf("Part%s  %12.6f  %12d  %7d  %9.2f  %14s %10.5f",suffixpartx.c_str(),TimeStep,(Nstep+1),Nstep-PartNstep,tseg,fun::GetDateTimeAfter(int(tleft)).c_str()/*GRR energy steady state measure*/ ,v2);
   }
   else Log->Printf("Part%s        %u particles successfully stored",suffixpartx.c_str(),npok);   
   
@@ -1827,7 +1848,7 @@ void JSph::GetResInfo(float tsim,float ttot,const std::string &headplus,const st
   const unsigned nout=GetOutPosCount()+GetOutRhopCount()+GetOutMoveCount();
   dinfo=dinfo+ ";"+ fun::IntStr(Nstep)+ ";"+ fun::IntStr(Part)+ ";"+ fun::UintStr(nout);
   dinfo=dinfo+ ";"+ fun::UintStr(MaxParticles)+ ";"+ fun::UintStr(MaxCells);
-  dinfo=dinfo+ ";"+ Hardware+ ";"+ GetStepName(TStep)+ ";"+ GetKernelName(TKernel)+ ";"+ GetViscoName(TVisco)+ ";"+ fun::FloatStr(Visco);
+  dinfo=dinfo+ ";"+ Hardware+ ";"+ GetStepName(TStep)+ ";"+ GetKernelName(TKernel)+ ";"+ GetViscoName(TVisco)+ ";"+ fun::FloatStr(Visco) /*+ fun::FloatStr(Visco[0]) + fun::FloatStr(Visco[1])*/;	/*GRR*/
   dinfo=dinfo+ ";"+ fun::FloatStr(DeltaSph,"%G")+ ";"+ fun::FloatStr(float(TimeMax));
   dinfo=dinfo+ ";"+ fun::UintStr(CaseNbound)+ ";"+ fun::UintStr(CaseNfixed)+ ";"+ fun::FloatStr(H);
   std::string rhopcad;
@@ -1988,7 +2009,7 @@ std::string JSph::TimerToText(const std::string &name,float value){
 //==============================================================================
 void JSph::DgSaveVtkParticlesCpu(std::string filename,int numfile,unsigned pini,unsigned pfin
   ,const tdouble3 *pos,const typecode *code,const unsigned *idp,const tfloat4 *velrhop
-  ,const tfloat3 *ace)const
+  ,const tfloat3 *ace,const float *visc/*GRR*/)const
 {
   int mpirank=Log->GetMpiRank();
   if(mpirank>=0)filename=string("p")+fun::IntStr(mpirank)+"_"+filename;
@@ -2000,6 +2021,7 @@ void JSph::DgSaveVtkParticlesCpu(std::string filename,int numfile,unsigned pini,
   tfloat3 *xvel=new tfloat3[np];
   tfloat3 *xace=(ace? new tfloat3[np]: NULL);
   float *xrhop=new float[np];
+  float *xvisc=new float[np];	/*GRR*/
   byte *xtype=new byte[np];
   byte *xkind=new byte[np];
   for(unsigned p=0;p<np;p++){
@@ -2008,6 +2030,7 @@ void JSph::DgSaveVtkParticlesCpu(std::string filename,int numfile,unsigned pini,
     xvel[p]=TFloat3(vr.x,vr.y,vr.z);
     if(xace)xace[p]=ace[p+pini];
     xrhop[p]=vr.w;
+	xvisc[p]=visc[p+pini];	/*GRR*/
     typecode t=CODE_GetType(code[p+pini]);
     xtype[p]=(t==CODE_TYPE_FIXED? 0: (t==CODE_TYPE_MOVING? 1: (t==CODE_TYPE_FLOATING? 2: 3)));
     typecode k=CODE_GetSpecialValue(code[p+pini]);
@@ -2021,6 +2044,7 @@ void JSph::DgSaveVtkParticlesCpu(std::string filename,int numfile,unsigned pini,
   if(xkind){ fields[nfields]=JFormatFiles2::DefineField("Kind",JFormatFiles2::UChar8 ,1,xkind);    nfields++; }
   if(xvel){  fields[nfields]=JFormatFiles2::DefineField("Vel" ,JFormatFiles2::Float32,3,xvel);     nfields++; }
   if(xrhop){ fields[nfields]=JFormatFiles2::DefineField("Rhop",JFormatFiles2::Float32,1,xrhop);    nfields++; }
+  if(xvisc){ fields[nfields]=JFormatFiles2::DefineField("Visc",JFormatFiles2::Float32,1,xvisc);	   nfields++; }		/*GRR*/
   if(xace){  fields[nfields]=JFormatFiles2::DefineField("Ace" ,JFormatFiles2::Float32,3,xace);     nfields++; }
   //string fname=DirOut+fun::FileNameSec("DgParts.vtk",numfile);
   JFormatFiles2::SaveVtk(filename,np,xpos,nfields,fields);
@@ -2030,6 +2054,7 @@ void JSph::DgSaveVtkParticlesCpu(std::string filename,int numfile,unsigned pini,
   delete[] xkind;
   delete[] xvel;
   delete[] xrhop;
+  delete[] xvisc;	/*GRR*/
   delete[] xace;
 }
 
@@ -2037,7 +2062,7 @@ void JSph::DgSaveVtkParticlesCpu(std::string filename,int numfile,unsigned pini,
 /// Saves VTK file with particle data (degug).
 /// Graba fichero VTK con datos de las particulas (degug).
 //==============================================================================
-void JSph::DgSaveVtkParticlesCpu(std::string filename,int numfile,unsigned pini,unsigned pfin,const tfloat3 *pos,const byte *check,const unsigned *idp,const tfloat3 *vel,const float *rhop){
+void JSph::DgSaveVtkParticlesCpu(std::string filename,int numfile,unsigned pini,unsigned pfin,const tfloat3 *pos,const byte *check,const unsigned *idp,const tfloat3 *vel,const float *rhop,const float *visc/*GRR*/){
   int mpirank=Log->GetMpiRank();
   if(mpirank>=0)filename=string("p")+fun::IntStr(mpirank)+"_"+filename;
   if(numfile>=0)filename=fun::FileNameSec(filename,numfile);
@@ -2052,6 +2077,7 @@ void JSph::DgSaveVtkParticlesCpu(std::string filename,int numfile,unsigned pini,
   if(idp){   fields[nfields]=JFormatFiles2::DefineField("Idp"  ,JFormatFiles2::UInt32 ,1,idp+pini);   nfields++; }
   if(vel){   fields[nfields]=JFormatFiles2::DefineField("Vel"  ,JFormatFiles2::Float32,3,vel+pini);   nfields++; }
   if(rhop){  fields[nfields]=JFormatFiles2::DefineField("Rhop" ,JFormatFiles2::Float32,1,rhop+pini);  nfields++; }
+  if(visc){	 fields[nfields]=JFormatFiles2::DefineField("Visc" ,JFormatFiles2::Float32,1,visc+pini);  nfields++; }	/*GRR*/
   if(check){ fields[nfields]=JFormatFiles2::DefineField("Check",JFormatFiles2::UChar8 ,1,check+pini); nfields++; }
   if(num){   fields[nfields]=JFormatFiles2::DefineField("Num"  ,JFormatFiles2::UInt32 ,1,num);        nfields++; }
   //-Generates VTK file.
@@ -2064,7 +2090,7 @@ void JSph::DgSaveVtkParticlesCpu(std::string filename,int numfile,unsigned pini,
 /// Saves CSV file with particle data (degug).
 /// Graba fichero CSV con datos de las particulas (degug).
 //==============================================================================
-void JSph::DgSaveCsvParticlesCpu(std::string filename,int numfile,unsigned pini,unsigned pfin,std::string head,const tfloat3 *pos,const unsigned *idp,const tfloat3 *vel,const float *rhop,const float *ar,const tfloat3 *ace,const tfloat3 *vcorr){
+void JSph::DgSaveCsvParticlesCpu(std::string filename,int numfile,unsigned pini,unsigned pfin,std::string head,const tfloat3 *pos,const unsigned *idp,const tfloat3 *vel,const float *rhop,const float *visc/*GRR*/,const float *ar,const tfloat3 *ace,const tfloat3 *vcorr){
   const char met[]="DgSaveCsvParticlesCpu";
   int mpirank=Log->GetMpiRank();
   if(mpirank>=0)filename=string("p")+fun::IntStr(mpirank)+"_"+filename;
@@ -2080,6 +2106,7 @@ void JSph::DgSaveCsvParticlesCpu(std::string filename,int numfile,unsigned pini,
     if(pos)pf << ";PosX;PosY;PosZ";
     if(vel)pf << ";VelX;VelY;VelZ";
     if(rhop)pf << ";Rhop";
+	if(visc)pf << ";Visc";	/*GRR*/
     if(ar)pf << ";Ar";
     if(ace)pf << ";AceX;AceY;AceZ";
     if(vcorr)pf << ";VcorrX;VcorrY;VcorrZ";
@@ -2092,6 +2119,7 @@ void JSph::DgSaveCsvParticlesCpu(std::string filename,int numfile,unsigned pini,
       if(pos)pf << ";" << fun::Float3Str(pos[p],fmt3);
       if(vel)pf << ";" << fun::Float3Str(vel[p],fmt3);
       if(rhop)pf << ";" << fun::FloatStr(rhop[p],fmt1);
+	  if(visc)pf << ";" << fun::FloatStr(visc[p],fmt1);		/*GRR*/
       if(ar)pf << ";" << fun::FloatStr(ar[p],fmt1);
       if(ace)pf << ";" << fun::Float3Str(ace[p],fmt3);
       if(vcorr)pf << ";" << fun::Float3Str(vcorr[p],fmt3);

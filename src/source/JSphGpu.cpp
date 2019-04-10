@@ -44,8 +44,8 @@ using namespace std;
 //==============================================================================
 JSphGpu::JSphGpu(bool withmpi):JSph(false,withmpi){
   ClassName="JSphGpu";
-  Idp=NULL; Code=NULL; Dcell=NULL; Posxy=NULL; Posz=NULL; Velrhop=NULL;
-  AuxPos=NULL; AuxVel=NULL; AuxRhop=NULL;
+  Idp=NULL; Code=NULL; Dcell=NULL; Posxy=NULL; Posz=NULL; Velrhop=NULL; Visc=NULL/*GRR*/;
+  AuxPos=NULL; AuxVel=NULL; AuxRhop=NULL; AuxVisc=NULL/*GRR*/;
   CellDiv=NULL;
   FtoAuxDouble6=NULL; FtoAuxFloat9=NULL; //-Calculates forces on floating bodies.
   ArraysGpu=new JArraysGpu;
@@ -83,13 +83,13 @@ void JSphGpu::InitVars(){
 
   FreeCpuMemoryParticles();
   FreeCpuMemoryFixed();
-  Idpg=NULL; Codeg=NULL; Dcellg=NULL; Posxyg=NULL; Poszg=NULL; Velrhopg=NULL;
-  VelrhopM1g=NULL;                                 //-Verlet
-  PosxyPreg=NULL; PoszPreg=NULL; VelrhopPreg=NULL; //-Symplectic
+  Idpg=NULL; Codeg=NULL; Dcellg=NULL; Posxyg=NULL; Poszg=NULL; Velrhopg=NULL; Viscg=NULL/*GRR*/;
+  VelrhopM1g=NULL; ViscM1g=NULL/*GRR*/;                                //-Verlet
+  PosxyPreg=NULL; PoszPreg=NULL; VelrhopPreg=NULL; ViscPreg=NULL/*GRR*/; //-Symplectic
   PsPospressg=NULL;                                //-Interaction Pos-Single.
   SpsTaug=NULL; SpsGradvelg=NULL;                  //-Laminar+SPS. 
   ViscDtg=NULL; 
-  Arg=NULL; Aceg=NULL; Deltag=NULL;
+  Arg=NULL; Aceg=NULL; Aviscg=NULL/*GRR*/; Deltag=NULL;
   ShiftPosg=NULL; ShiftDetectg=NULL; //-Shifting.
   RidpMoveg=NULL;
   FtRidpg=NULL;   FtoMasspg=NULL;                      //-Floatings.
@@ -217,9 +217,11 @@ void JSphGpu::FreeCpuMemoryParticles(){
   delete[] Posxy;      Posxy=NULL;
   delete[] Posz;       Posz=NULL;
   delete[] Velrhop;    Velrhop=NULL;
+  delete[] Visc;	   Visc=NULL;		/*GRR*/
   delete[] AuxPos;     AuxPos=NULL;
   delete[] AuxVel;     AuxVel=NULL;
   delete[] AuxRhop;    AuxRhop=NULL;
+  delete[] AuxVisc;	   AuxVisc=NULL;	/*GRR*/
 }
 
 //==============================================================================
@@ -239,9 +241,11 @@ void JSphGpu::AllocCpuMemoryParticles(unsigned np){
       Posxy=new tdouble2[np];    MemCpuParticles+=sizeof(tdouble2)*np;
       Posz=new double[np];       MemCpuParticles+=sizeof(double)*np;
       Velrhop=new tfloat4[np];   MemCpuParticles+=sizeof(tfloat4)*np;
+	  Visc=new float[np];		 MemCpuParticles+=sizeof(float)*np;			/*GRR*/
       AuxPos=new tdouble3[np];   MemCpuParticles+=sizeof(tdouble3)*np; 
       AuxVel=new tfloat3[np];    MemCpuParticles+=sizeof(tfloat3)*np;
       AuxRhop=new float[np];     MemCpuParticles+=sizeof(float)*np;
+	  AuxVisc=new float[np];	 MemCpuParticles+=sizeof(float)*np;			/*GRR*/
     }
     catch(const std::bad_alloc){
       RunException(met,fun::PrintStr("Could not allocate the requested memory (np=%u).",np));
@@ -282,12 +286,16 @@ void JSphGpu::AllocGpuMemoryParticles(unsigned np,float over){
   ArraysGpu->AddArrayCount(JArraysGpu::SIZE_12B,1); //-ace
   ArraysGpu->AddArrayCount(JArraysGpu::SIZE_16B,4); //-velrhop,posxy
   ArraysGpu->AddArrayCount(JArraysGpu::SIZE_8B,2);  //-posz
+  ArraysGpu->AddArrayCount(JArraysGpu::SIZE_4B,1);	//-visc			/*GRR*/
+  ArraysGpu->AddArrayCount(JArraysGpu::SIZE_4B,1);  //-avisc		/*GRR*/
   if(TStep==STEP_Verlet){
     ArraysGpu->AddArrayCount(JArraysGpu::SIZE_16B,1); //-velrhopm1
+	ArraysGpu->AddArrayCount(JArraysGpu::SIZE_4B,1);  //-viscm1		/*GRR*/
   }
   else if(TStep==STEP_Symplectic){
     ArraysGpu->AddArrayCount(JArraysGpu::SIZE_8B,1);  //-poszpre
     ArraysGpu->AddArrayCount(JArraysGpu::SIZE_16B,2); //-posxypre,velrhoppre
+	ArraysGpu->AddArrayCount(JArraysGpu::SIZE_4B,1);  //-viscpre	/*GRR*/
   }
   if(TVisco==VISCO_LaminarSPS){     
     ArraysGpu->AddArrayCount(JArraysGpu::SIZE_24B,2); //-SpsTau,SpsGradvel
@@ -317,10 +325,13 @@ void JSphGpu::ResizeGpuMemoryParticles(unsigned npnew){
   double2     *posxy     =SaveArrayGpu(Np,Posxyg);
   double      *posz      =SaveArrayGpu(Np,Poszg);
   float4      *velrhop   =SaveArrayGpu(Np,Velrhopg);
+  float		  *visc		 =SaveArrayGpu(Np,Viscg);		/*GRR*/
   float4      *velrhopm1 =SaveArrayGpu(Np,VelrhopM1g);
+  float		  *viscm1	 =SaveArrayGpu(Np,ViscM1g);		/*GRR*/
   double2     *posxypre  =SaveArrayGpu(Np,PosxyPreg);
   double      *poszpre   =SaveArrayGpu(Np,PoszPreg);
   float4      *velrhoppre=SaveArrayGpu(Np,VelrhopPreg);
+  float		  *viscpre	 =SaveArrayGpu(Np,ViscPreg);	/*GRR*/
   tsymatrix3f *spstau    =SaveArrayGpu(Np,SpsTaug);
   //-Frees pointers.
   ArraysGpu->Free(Idpg);
@@ -329,10 +340,13 @@ void JSphGpu::ResizeGpuMemoryParticles(unsigned npnew){
   ArraysGpu->Free(Posxyg);
   ArraysGpu->Free(Poszg);
   ArraysGpu->Free(Velrhopg);
+  ArraysGpu->Free(Viscg);		/*GRR*/
   ArraysGpu->Free(VelrhopM1g);
+  ArraysGpu->Free(ViscM1g);		/*GRR*/
   ArraysGpu->Free(PosxyPreg);
   ArraysGpu->Free(PoszPreg);
   ArraysGpu->Free(VelrhopPreg);
+  ArraysGpu->Free(ViscPreg);	/*GRR*/
   ArraysGpu->Free(SpsTaug);
   //-Resizes GPU memory allocation.
   const double mbparticle=(double(MemGpuParticles)/(1024*1024))/GpuParticlesSize; //-MB por particula.
@@ -345,10 +359,13 @@ void JSphGpu::ResizeGpuMemoryParticles(unsigned npnew){
   Posxyg  =ArraysGpu->ReserveDouble2();
   Poszg   =ArraysGpu->ReserveDouble();
   Velrhopg=ArraysGpu->ReserveFloat4();
+  Viscg	  =ArraysGpu->ReserveFloat();		/*GRR*/
   if(velrhopm1) VelrhopM1g =ArraysGpu->ReserveFloat4();
+  if(viscm1)	ViscM1g	   =ArraysGpu->ReserveFloat();		/*GRR*/
   if(posxypre)  PosxyPreg  =ArraysGpu->ReserveDouble2();
   if(poszpre)   PoszPreg   =ArraysGpu->ReserveDouble();
   if(velrhoppre)VelrhopPreg=ArraysGpu->ReserveFloat4();
+  if(viscpre)	ViscPreg   =ArraysGpu->ReserveFloat();		/*GRR*/
   if(spstau)    SpsTaug    =ArraysGpu->ReserveSymatrix3f();
   //-Restore data in GPU memory.
   RestoreArrayGpu(Np,idp,Idpg);
@@ -357,10 +374,13 @@ void JSphGpu::ResizeGpuMemoryParticles(unsigned npnew){
   RestoreArrayGpu(Np,posxy,Posxyg);
   RestoreArrayGpu(Np,posz,Poszg);
   RestoreArrayGpu(Np,velrhop,Velrhopg);
+  RestoreArrayGpu(Np,visc,Viscg);			/*GRR*/
   RestoreArrayGpu(Np,velrhopm1,VelrhopM1g);
+  RestoreArrayGpu(Np,viscm1,ViscM1g);		/*GRR*/
   RestoreArrayGpu(Np,posxypre,PosxyPreg);
   RestoreArrayGpu(Np,poszpre,PoszPreg);
   RestoreArrayGpu(Np,velrhoppre,VelrhopPreg);
+  RestoreArrayGpu(Np,viscpre,ViscPreg);		/*GRR*/
   RestoreArrayGpu(Np,spstau,SpsTaug);
   //-Updates values.
   GpuParticlesSize=npnew;
@@ -403,7 +423,9 @@ void JSphGpu::ReserveBasicArraysGpu(){
   Posxyg=ArraysGpu->ReserveDouble2();
   Poszg=ArraysGpu->ReserveDouble();
   Velrhopg=ArraysGpu->ReserveFloat4();
-  if(TStep==STEP_Verlet)VelrhopM1g=ArraysGpu->ReserveFloat4();
+  Viscg=ArraysGpu->ReserveFloat();			/*GRR*/
+  if(TStep==STEP_Verlet){VelrhopM1g=ArraysGpu->ReserveFloat4();
+	ViscM1g=ArraysGpu->ReserveFloat();}		/*GRR*/
   if(TVisco==VISCO_LaminarSPS)SpsTaug=ArraysGpu->ReserveSymatrix3f();
 }
 
@@ -494,6 +516,7 @@ void JSphGpu::ParticlesDataUp(unsigned n){
   cudaMemcpy(Posxyg  ,Posxy  ,sizeof(double2)*n ,cudaMemcpyHostToDevice);
   cudaMemcpy(Poszg   ,Posz   ,sizeof(double)*n  ,cudaMemcpyHostToDevice);
   cudaMemcpy(Velrhopg,Velrhop,sizeof(float4)*n  ,cudaMemcpyHostToDevice);
+  cudaMemcpy(Viscg	 ,Visc	 ,sizeof(float)*n	,cudaMemcpyHostToDevice);		/*GRR*/
   CheckCudaError("ParticlesDataUp","Failed copying data to GPU.");
 }
 
@@ -516,6 +539,7 @@ unsigned JSphGpu::ParticlesDataDown(unsigned n,unsigned pini,bool code,bool cell
   cudaMemcpy(Posxy,Posxyg+pini,sizeof(double2)*n,cudaMemcpyDeviceToHost);
   cudaMemcpy(Posz,Poszg+pini,sizeof(double)*n,cudaMemcpyDeviceToHost);
   cudaMemcpy(Velrhop,Velrhopg+pini,sizeof(float4)*n,cudaMemcpyDeviceToHost);
+  cudaMemcpy(Visc,Viscg+pini,sizeof(float)*n,cudaMemcpyDeviceToHost);		/*GRR*/
   if(code || onlynormal)cudaMemcpy(Code,Codeg+pini,sizeof(typecode)*n,cudaMemcpyDeviceToHost);
   CheckCudaError("ParticlesDataDown","Failed copying data from GPU.");
   //-Eliminates abnormal particles (periodic and others). | Elimina particulas no normales (periodicas y otras).
@@ -528,6 +552,7 @@ unsigned JSphGpu::ParticlesDataDown(unsigned n,unsigned pini,bool code,bool cell
         Posxy[p-ndel]  =Posxy[p];
         Posz[p-ndel]   =Posz[p];
         Velrhop[p-ndel]=Velrhop[p];
+		Visc[p-ndel]   =Visc[p];		/*GRR*/
         Code[p-ndel]   =Code[p];
       }
       if(!normal)ndel++;
@@ -539,6 +564,7 @@ unsigned JSphGpu::ParticlesDataDown(unsigned n,unsigned pini,bool code,bool cell
     AuxPos[p]=TDouble3(Posxy[p].x,Posxy[p].y,Posz[p]);
     AuxVel[p]=TFloat3(Velrhop[p].x,Velrhop[p].y,Velrhop[p].z);
     AuxRhop[p]=Velrhop[p].w;
+	AuxVisc[p]=Visc[p];			/*GRR*/
   }
   //-Reorder components in their original order. | Reordena componentes en su orden original.
   if(cellorderdecode)DecodeCellOrder(n,AuxPos,AuxVel);
@@ -606,8 +632,8 @@ void JSphGpu::ConfigBlockSizes(bool usezone,bool useperi){
     StKerInfo kerinfo;
     memset(&kerinfo,0,sizeof(StKerInfo));
     #ifndef DISABLE_BSMODES
-      cusph::Interaction_Forces(Psingle,TKernel,(CaseNfloat>0),UseDEM,lamsps,TDeltaSph,CellMode,0,0,0,0,100,50,20,TUint3(0),NULL,TUint3(0),NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,TShifting,NULL,NULL,Simulate2D,&kerinfo,NULL);
-      if(UseDEM)cusph::Interaction_ForcesDem(Psingle,CellMode,BlockSizes.forcesdem,CaseNfloat,TUint3(0),NULL,TUint3(0),NULL,NULL,NULL,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,&kerinfo);
+      cusph::Interaction_Forces(Psingle,TKernel,(CaseNfloat>0),UseDEM,lamsps,TDeltaSph,CellMode,0,0,0,0,100,50,20,TUint3(0),NULL,TUint3(0),NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL/*GRR -visc*/,NULL,NULL,NULL,NULL,NULL,NULL,NULL/*GRR -avisc*/,NULL,TShifting,NULL,NULL,Simulate2D,&kerinfo,NULL);
+      if(UseDEM)cusph::Interaction_ForcesDem(Psingle,CellMode,BlockSizes.forcesdem,CaseNfloat,TUint3(0),NULL,TUint3(0),NULL,NULL,NULL,0,NULL,NULL,NULL,NULL,NULL/*GRR -visc*/,NULL,NULL,NULL,NULL,NULL/*GRR -avisc*/,&kerinfo);
     #endif
     //Log->Printf("====> bound -> rg:%d  bs:%d  bsmax:%d",kerinfo.forcesbound_rg,kerinfo.forcesbound_bs,kerinfo.forcesbound_bsmax);
     //Log->Printf("====> fluid -> rg:%d  bs:%d  bsmax:%d",kerinfo.forcesfluid_rg,kerinfo.forcesfluid_bs,kerinfo.forcesfluid_bsmax);
@@ -762,7 +788,8 @@ void JSphGpu::InitFloating(){
 //==============================================================================
 void JSphGpu::InitRunGpu(){
   InitRun();
-  if(TStep==STEP_Verlet)cudaMemcpy(VelrhopM1g,Velrhopg,sizeof(float4)*Np,cudaMemcpyDeviceToDevice);
+  if(TStep==STEP_Verlet){cudaMemcpy(VelrhopM1g,Velrhopg,sizeof(float4)*Np,cudaMemcpyDeviceToDevice);
+						 cudaMemcpy(ViscM1g,Viscg,sizeof(float)*Np,cudaMemcpyDeviceToDevice);}
   if(TVisco==VISCO_LaminarSPS)cudaMemset(SpsTaug,0,sizeof(tsymatrix3f)*Np);
   if(CaseNfloat)InitFloating();
   CheckCudaError("InitRunGpu","Failed initializing variables for execution.");
@@ -796,6 +823,7 @@ void JSphGpu::PreInteractionVars_Forces(TpInter tinter,unsigned np,unsigned npb)
   if(ShiftDetectg)cudaMemset(ShiftDetectg,0,sizeof(float)*np);           //ShiftDetectg[]=0
   cudaMemset(Aceg,0,sizeof(tfloat3)*npb);                                //Aceg[]=(0,0,0) para bound //Aceg[]=(0,0,0) for the boundary
   cusph::InitArray(npf,Aceg+npb,Gravity);                                //Aceg[]=Gravity para fluid //Aceg[]=Gravity for the fluid
+  cudaMemset(Aviscg,0,sizeof(float)*np);				/*GRR*/
   if(SpsGradvelg)cudaMemset(SpsGradvelg+npb,0,sizeof(tsymatrix3f)*npf);  //SpsGradvelg[]=(0,0,0,0,0,0).
 
   //-Apply the extra forces to the correct particle sets.
@@ -812,6 +840,7 @@ void JSphGpu::PreInteraction_Forces(TpInter tinter){
   ViscDtg=ArraysGpu->ReserveFloat();
   Arg=ArraysGpu->ReserveFloat();
   Aceg=ArraysGpu->ReserveFloat3();
+  Aviscg=ArraysGpu->ReserveFloat();		/*GRR*/
   if(TDeltaSph==DELTA_DynamicExt)Deltag=ArraysGpu->ReserveFloat();
   if(TShifting!=SHIFT_None){
     ShiftPosg=ArraysGpu->ReserveFloat3();
@@ -847,6 +876,7 @@ void JSphGpu::PosInteraction_Forces(){
   //-Frees memory allocated in PreInteraction_Forces().
   ArraysGpu->Free(Arg);          Arg=NULL;
   ArraysGpu->Free(Aceg);         Aceg=NULL;
+  ArraysGpu->Free(Aviscg);		 Aviscg=NULL;	/*GRR*/
   ArraysGpu->Free(ViscDtg);      ViscDtg=NULL;
   ArraysGpu->Free(Deltag);       Deltag=NULL;
   ArraysGpu->Free(ShiftPosg);    ShiftPosg=NULL;
@@ -871,15 +901,16 @@ void JSphGpu::ComputeVerlet(double dt){  //pdtedom
   //-Calcula desplazamiento, velocidad y densidad.
   if(VerletStep<VerletSteps){
     const double twodt=dt+dt;
-    cusph::ComputeStepVerlet(WithFloating,shift,Np,Npb,Velrhopg,VelrhopM1g,Arg,Aceg,ShiftPosg,dt,twodt,RhopOutMin,RhopOutMax,Codeg,movxyg,movzg,VelrhopM1g);
+    cusph::ComputeStepVerlet(WithFloating,shift,Np,Npb,Velrhopg,VelrhopM1g,Viscg/*GRR*/,ViscM1g/*GRR*/,Arg,Aceg,Aviscg/*GRR*/,ShiftPosg,dt,twodt,RhopOutMin,RhopOutMax,Codeg,movxyg,movzg,VelrhopM1g,ViscM1g/*GRR*/);
   }
   else{
-    cusph::ComputeStepVerlet(WithFloating,shift,Np,Npb,Velrhopg,Velrhopg,Arg,Aceg,ShiftPosg,dt,dt,RhopOutMin,RhopOutMax,Codeg,movxyg,movzg,VelrhopM1g);
+    cusph::ComputeStepVerlet(WithFloating,shift,Np,Npb,Velrhopg,Velrhopg,Viscg/*GRR*/,Viscg/*GRR*/,Arg,Aceg,Aviscg/*GRR*/,ShiftPosg,dt,dt,RhopOutMin,RhopOutMax,Codeg,movxyg,movzg,VelrhopM1g,ViscM1g/*GRR*/);
     VerletStep=0;
   }
   //-The new values are calculated in VelRhopM1g.
   //-Los nuevos valores se calculan en VelrhopM1g.
   swap(Velrhopg,VelrhopM1g);   //-Exchanges Velrhopg and VelrhopM1g. | Intercambia Velrhopg y VelrhopM1g.
+  swap(Viscg,ViscM1g);			/*GRR*/
   //-Applies displacement to non-periodic fluid particles.
   //-Aplica desplazamiento a las particulas fluid no periodicas.
   cusph::ComputeStepPos(PeriActive,WithFloating,Np,Npb,movxyg,movzg,Posxyg,Poszg,Dcellg,Codeg);
@@ -900,17 +931,19 @@ void JSphGpu::ComputeSymplecticPre(double dt){
   PosxyPreg=ArraysGpu->ReserveDouble2();
   PoszPreg=ArraysGpu->ReserveDouble();
   VelrhopPreg=ArraysGpu->ReserveFloat4();
+  ViscPreg=ArraysGpu->ReserveFloat();		/*GRR*/
   //-Changes data of PRE variables for calculating the new data.
   //-Cambia datos a variables PRE para calcular nuevos datos.
   swap(PosxyPreg,Posxyg);      //-PosxyPre[] <= Posxy[]
   swap(PoszPreg,Poszg);        //-PoszPre[] <= Posz[]
   swap(VelrhopPreg,Velrhopg);  //-VelrhopPre[] <= Velrhop[]
+  swap(ViscPreg,Viscg);			/*GRR*/
   //-Allocate memory to compute the diplacement.
   double2 *movxyg=ArraysGpu->ReserveDouble2();
   double *movzg=ArraysGpu->ReserveDouble();
   //-Compute displacement, velocity and density.
   const double dt05=dt*.5;
-  cusph::ComputeStepSymplecticPre(WithFloating,shift,Np,Npb,VelrhopPreg,Arg,Aceg,ShiftPosg,dt05,RhopOutMin,RhopOutMax,Codeg,movxyg,movzg,Velrhopg);
+  cusph::ComputeStepSymplecticPre(WithFloating,shift,Np,Npb,VelrhopPreg,ViscPreg/*GRR*/,Arg,Aceg,Aviscg/*GRR*/,ShiftPosg,dt05,RhopOutMin,RhopOutMax,Codeg,movxyg,movzg,Velrhopg,Viscg/*GRR*/);
   //-Applies displacement to non-periodic fluid particles.
   //-Aplica desplazamiento a las particulas fluid no periodicas.
   cusph::ComputeStepPos2(PeriActive,WithFloating,Np,Npb,PosxyPreg,PoszPreg,movxyg,movzg,Posxyg,Poszg,Dcellg,Codeg);
@@ -936,7 +969,7 @@ void JSphGpu::ComputeSymplecticCorr(double dt){
   double *movzg=ArraysGpu->ReserveDouble();
   //-Computes displacement, velocity and density.
   const double dt05=dt*.5;
-  cusph::ComputeStepSymplecticCor(WithFloating,shift,Np,Npb,VelrhopPreg,Arg,Aceg,ShiftPosg,dt05,dt,RhopOutMin,RhopOutMax,Codeg,movxyg,movzg,Velrhopg);
+  cusph::ComputeStepSymplecticCor(WithFloating,shift,Np,Npb,VelrhopPreg,ViscPreg/*GRR*/,Arg,Aceg,Aviscg/*GRR*/,ShiftPosg,dt05,dt,RhopOutMin,RhopOutMax,Codeg,movxyg,movzg,Velrhopg,Viscg/*GRR*/);
   //-Applies displacement to non-periodic fluid particles.
   //-Aplica desplazamiento a las particulas fluid no periodicas.
   cusph::ComputeStepPos2(PeriActive,WithFloating,Np,Npb,PosxyPreg,PoszPreg,movxyg,movzg,Posxyg,Poszg,Dcellg,Codeg);
@@ -947,6 +980,7 @@ void JSphGpu::ComputeSymplecticCorr(double dt){
   ArraysGpu->Free(PosxyPreg);    PosxyPreg=NULL;
   ArraysGpu->Free(PoszPreg);     PoszPreg=NULL;
   ArraysGpu->Free(VelrhopPreg);  VelrhopPreg=NULL;
+  ArraysGpu->Free(ViscPreg);	 ViscPreg=NULL;			/*GRR*/
   TmgStop(Timers,TMG_SuComputeStep);
 }
 
@@ -1103,7 +1137,7 @@ void JSphGpu::GetTimersInfo(std::string &hinfo,std::string &dinfo)const{
 //==============================================================================
 void JSphGpu::DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pini,unsigned pfin,unsigned cellcode
   ,const double2 *posxyg,const double *poszg,const unsigned *idpg,const unsigned *dcelg
-  ,const typecode *codeg,const float4 *velrhopg,const float4 *velrhopm1g,const float3 *aceg)
+  ,const typecode *codeg,const float4 *velrhopg,const float4 *velrhopm1g,const float *viscg/*GRR*/,const float *viscm1g/*GRR*/,const float3 *aceg)
 {
   //-Allocates memory.
   const unsigned n=pfin-pini;
@@ -1155,6 +1189,24 @@ void JSphGpu::DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pi
     for(unsigned p=0;p<n;p++){ velm1[p]=TFloat3(aux[p].x,aux[p].y,aux[p].z); rhopm1[p]=aux[p].w; }
     delete[] aux;
   }
+  //-Loads visc.	/*GRR*/
+  float *visc=NULL;
+  if(viscg){
+	  visc=new float[n];
+	  float *aux=new float[n];
+	  cudaMemcpy(aux,viscg+pini,sizeof(float)*n,cudaMemcpyDeviceToHost);
+	  for(unsigned p=0;p<n;p++){visc[p]=aux[p];}
+	  delete[] aux;
+  }
+  //-Load viscm1.	/*GRR*/
+  float *viscm1=NULL;
+  if(viscm1g){
+	  viscm1=new float[n];
+	  float *aux=new float[n];
+	  cudaMemcpy(aux,viscm1g+pini,sizeof(float)*n,cudaMemcpyDeviceToHost);
+	  for(unsigned p=0;p<n;p++){viscm1[p]=aux[p];}
+	  delete[] aux;
+  }
   //-Loads ace.
   tfloat3 *ace=NULL;
   if(aceg){
@@ -1190,8 +1242,10 @@ void JSphGpu::DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pi
   if(dcel){   fields[nfields]=JFormatFiles2::DefineField("Dcel"  ,JFormatFiles2::UInt32  ,3,dcel);   nfields++; }
   if(vel){    fields[nfields]=JFormatFiles2::DefineField("Vel"   ,JFormatFiles2::Float32 ,3,vel);    nfields++; }
   if(rhop){   fields[nfields]=JFormatFiles2::DefineField("Rhop"  ,JFormatFiles2::Float32 ,1,rhop);   nfields++; }
+  if(visc){	  fields[nfields]=JFormatFiles2::DefineField("Visc"	 ,JFormatFiles2::Float32 ,1,visc);	 nfields++; }	/*GRR*/
   if(velm1){  fields[nfields]=JFormatFiles2::DefineField("Velm1" ,JFormatFiles2::Float32 ,3,velm1);  nfields++; }
   if(rhopm1){ fields[nfields]=JFormatFiles2::DefineField("Rhopm1",JFormatFiles2::Float32 ,1,rhopm1); nfields++; }
+  if(viscm1){ fields[nfields]=JFormatFiles2::DefineField("Viscm1",JFormatFiles2::Float32 ,1,viscm1); nfields++; }	/*GRR*/
   if(ace){    fields[nfields]=JFormatFiles2::DefineField("Ace"   ,JFormatFiles2::Float32 ,3,ace);    nfields++; }
   if(type){   fields[nfields]=JFormatFiles2::DefineField("Typex" ,JFormatFiles2::UChar8  ,1,type);   nfields++; }
 
@@ -1204,8 +1258,10 @@ void JSphGpu::DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pi
   delete[] dcel;
   delete[] vel;
   delete[] rhop;
+  delete[] visc;	/*GRR*/
   delete[] velm1;
   delete[] rhopm1;
+  delete[] viscm1;	/*GRR*/
   delete[] ace;
   delete[] type;
 }
@@ -1214,7 +1270,7 @@ void JSphGpu::DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pi
 /// Save VTK file with particle data (debug).
 /// Graba fichero VTK con datos de las particulas (debug).
 //==============================================================================
-void JSphGpu::DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pini,unsigned pfin,bool idp,bool vel,bool rhop,bool code)
+void JSphGpu::DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pini,unsigned pfin,bool idp,bool vel,bool rhop,bool visc/*GRR*/,bool code)
 {
   if(numfile>=0)filename=fun::FileNameSec(filename,numfile);
   if(Log->GetMpiRank()>=0)filename=string("p")+fun::IntStr(Log->GetMpiRank())+"_"+filename;
@@ -1244,6 +1300,7 @@ void JSphGpu::DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pi
   if(type){ fields[nfields]=JFormatFiles2::DefineField("Typex",JFormatFiles2::UChar8  ,1,type);    nfields++; }
   if(vel){  fields[nfields]=JFormatFiles2::DefineField("Vel"  ,JFormatFiles2::Float32 ,3,AuxVel);  nfields++; }
   if(rhop){ fields[nfields]=JFormatFiles2::DefineField("Rhop" ,JFormatFiles2::Float32 ,1,AuxRhop); nfields++; }
+  if(visc){	fields[nfields]=JFormatFiles2::DefineField("Visc" ,JFormatFiles2::Float32 ,1,AuxVisc); nfields++; }		/*GRR*/
 #ifdef CODE_SIZE4
   if(code){ fields[nfields]=JFormatFiles2::DefineField("Code" ,JFormatFiles2::UInt32  ,1,Code);    nfields++; }
 #else
@@ -1260,7 +1317,7 @@ void JSphGpu::DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pi
 /// Save VTK file with particle data (debug).
 /// Graba fichero VTK con datos de las particulas (debug).
 //==============================================================================
-void JSphGpu::DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pini,unsigned pfin,const float3 *posg,const byte *checkg,const unsigned *idpg,const float3 *velg,const float *rhopg){
+void JSphGpu::DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pini,unsigned pfin,const float3 *posg,const byte *checkg,const unsigned *idpg,const float3 *velg,const float *rhopg,const float *viscg/*GRR*/){
   //-Allocates memory.
   const unsigned n=pfin-pini;
   tfloat3 *pos=new tfloat3[n];
@@ -1268,31 +1325,35 @@ void JSphGpu::DgSaveVtkParticlesGpu(std::string filename,int numfile,unsigned pi
   unsigned *idp=NULL;
   tfloat3 *vel=NULL;
   float *rhop=NULL;
+  float *visc=NULL;		/*GRR*/
   if(checkg)check=new byte[n];
   if(idpg)idp=new unsigned[n];
   if(velg)vel=new tfloat3[n];
   if(rhopg)rhop=new float[n];
+  if(viscg)visc=new float[n];	/*GRR*/
   //-Copies data from GPU.
   cudaMemcpy(pos,posg+pini,sizeof(float3)*n,cudaMemcpyDeviceToHost);
   if(checkg)cudaMemcpy(check,checkg+pini,sizeof(byte)*n,cudaMemcpyDeviceToHost);
   if(idpg)cudaMemcpy(idp,idpg+pini,sizeof(unsigned)*n,cudaMemcpyDeviceToHost);
   if(velg)cudaMemcpy(vel,velg+pini,sizeof(float3)*n,cudaMemcpyDeviceToHost);
   if(rhopg)cudaMemcpy(rhop,rhopg+pini,sizeof(float)*n,cudaMemcpyDeviceToHost);
+  if(viscg)cudaMemcpy(visc,viscg+pini,sizeof(float)*n,cudaMemcpyDeviceToHost);	/*GRR*/
   //-Generates VTK file.
-  DgSaveVtkParticlesCpu(filename,numfile,0,n,pos,check,idp,vel,rhop);
+  DgSaveVtkParticlesCpu(filename,numfile,0,n,pos,check,idp,vel,rhop,visc/*GRR*/);
   //-Frees memory.
   delete[] pos;
   delete[] check;
   delete[] idp;
   delete[] vel;
   delete[] rhop;
+  delete[] visc;	/*GRR*/
 }
 
 //==============================================================================
 /// Save CSV file with particle data (debug).
 /// Graba fichero CSV con datos de las particulas (debug).
 //==============================================================================
-void JSphGpu::DgSaveCsvParticlesGpu(std::string filename,int numfile,unsigned pini,unsigned pfin,std::string head,const float3 *posg,const unsigned *idpg,const float3 *velg,const float *rhopg,const float *arg,const float3 *aceg,const float3 *vcorrg){
+void JSphGpu::DgSaveCsvParticlesGpu(std::string filename,int numfile,unsigned pini,unsigned pfin,std::string head,const float3 *posg,const unsigned *idpg,const float3 *velg,const float *rhopg,const float *viscg/*GRR*/,const float *arg,const float3 *aceg,const float3 *vcorrg){
   const char met[]="DgSaveCsvParticlesGpu"; 
   //-Allocates memory.
   const unsigned n=pfin-pini;
@@ -1300,6 +1361,7 @@ void JSphGpu::DgSaveCsvParticlesGpu(std::string filename,int numfile,unsigned pi
   tfloat3 *pos=NULL;   if(posg)pos=new tfloat3[n];
   tfloat3 *vel=NULL;   if(velg)vel=new tfloat3[n];
   float *rhop=NULL;    if(rhopg)rhop=new float[n];
+  float *visc=NULL;	   if(viscg)visc=new float[n];	/*GRR*/
   float *ar=NULL;      if(arg)ar=new float[n];
   tfloat3 *ace=NULL;   if(aceg)ace=new tfloat3[n];
   tfloat3 *vcorr=NULL; if(vcorrg)vcorr=new tfloat3[n];
@@ -1308,17 +1370,19 @@ void JSphGpu::DgSaveCsvParticlesGpu(std::string filename,int numfile,unsigned pi
   if(posg)cudaMemcpy(pos,posg+pini,sizeof(float3)*n,cudaMemcpyDeviceToHost);
   if(velg)cudaMemcpy(vel,velg+pini,sizeof(float3)*n,cudaMemcpyDeviceToHost);
   if(rhopg)cudaMemcpy(rhop,rhopg+pini,sizeof(float)*n,cudaMemcpyDeviceToHost);
+  if(viscg)cudaMemcpy(visc,viscg+pini,sizeof(float)*n,cudaMemcpyDeviceToHost);	/*GRR*/
   if(arg)cudaMemcpy(ar,arg+pini,sizeof(float)*n,cudaMemcpyDeviceToHost);
   if(aceg)cudaMemcpy(ace,aceg+pini,sizeof(float3)*n,cudaMemcpyDeviceToHost);
   if(vcorrg)cudaMemcpy(vcorr,vcorrg+pini,sizeof(float3)*n,cudaMemcpyDeviceToHost);
   CheckCudaError(met,"Failed copying data from GPU.");
   //-Generates CSV file.
-  DgSaveCsvParticlesCpu(filename,numfile,0,n,head,pos,idp,vel,rhop,ar,ace,vcorr);
+  DgSaveCsvParticlesCpu(filename,numfile,0,n,head,pos,idp,vel,rhop,visc/*GRR*/,ar,ace,vcorr);
   //-Frees memory.
   delete[] idp;
   delete[] pos;
   delete[] vel;
   delete[] rhop;
+  delete[] visc;	/*GRR*/
   delete[] ar;
   delete[] ace;
   delete[] vcorr;
@@ -1328,7 +1392,7 @@ void JSphGpu::DgSaveCsvParticlesGpu(std::string filename,int numfile,unsigned pi
 /// Save CSV file with particle data (debug).
 /// Graba fichero CSV con datos de las particulas (debug).
 //==============================================================================
-void JSphGpu::DgSaveCsvParticlesGpu2(std::string filename,int numfile,unsigned pini,unsigned pfin,std::string head,const float3 *posg,const unsigned *idpg,const float3 *velg,const float *rhopg,const float4 *pospresg,const float4 *velrhopg){
+void JSphGpu::DgSaveCsvParticlesGpu2(std::string filename,int numfile,unsigned pini,unsigned pfin,std::string head,const float3 *posg,const unsigned *idpg,const float3 *velg,const float *rhopg,const float *viscg/*GRR*/,const float4 *pospresg,const float4 *velrhopg){
   const char met[]="DgSaveCsvParticlesGpu2";
   //-Allocates memory.
   const unsigned n=pfin-pini;
@@ -1336,6 +1400,7 @@ void JSphGpu::DgSaveCsvParticlesGpu2(std::string filename,int numfile,unsigned p
   tfloat3 *pos=NULL;   if(posg)pos=new tfloat3[n];
   tfloat3 *vel=NULL;   if(velg)vel=new tfloat3[n];
   float *rhop=NULL;    if(rhopg)rhop=new float[n];
+  float *visc=NULL;	   if(viscg)visc=new float[n];	/*GRR*/
   tfloat4 *pospres=NULL;  if(pospresg)pospres=new tfloat4[n];
   tfloat4 *velrhop=NULL;  if(velrhopg)velrhop=new tfloat4[n];
   //-Copies data from GPU.
@@ -1343,16 +1408,18 @@ void JSphGpu::DgSaveCsvParticlesGpu2(std::string filename,int numfile,unsigned p
   if(posg)cudaMemcpy(pos,posg+pini,sizeof(float3)*n,cudaMemcpyDeviceToHost);
   if(velg)cudaMemcpy(vel,velg+pini,sizeof(float3)*n,cudaMemcpyDeviceToHost);
   if(rhopg)cudaMemcpy(rhop,rhopg+pini,sizeof(float)*n,cudaMemcpyDeviceToHost);
+  if(viscg)cudaMemcpy(visc,viscg+pini,sizeof(float)*n,cudaMemcpyDeviceToHost);	/*GRR*/
   if(pospresg)cudaMemcpy(pospres,pospresg+pini,sizeof(float4)*n,cudaMemcpyDeviceToHost);
   if(velrhopg)cudaMemcpy(velrhop,velrhopg+pini,sizeof(float4)*n,cudaMemcpyDeviceToHost);
   CheckCudaError(met,"Failed copying data from GPU.");
   //-Generates CSV file.
-  DgSaveCsvParticles2(filename,numfile,0,n,head,pos,idp,vel,rhop,pospres,velrhop);
+  DgSaveCsvParticles2(filename,numfile,0,n,head,pos,idp,vel,rhop,visc/*GRR*/,pospres,velrhop);
   //-Frees memory.
   delete[] idp;
   delete[] pos;
   delete[] vel;
   delete[] rhop;
+  delete[] visc;	/*GRR*/
   delete[] pospres;
   delete[] velrhop;
 }
@@ -1361,7 +1428,7 @@ void JSphGpu::DgSaveCsvParticlesGpu2(std::string filename,int numfile,unsigned p
 /// Save CSV file with particle data (debug).
 /// Graba fichero CSV con datos de las particulas (debug).
 //==============================================================================
-void JSphGpu::DgSaveCsvParticles2(std::string filename,int numfile,unsigned pini,unsigned pfin,std::string head,const tfloat3 *pos,const unsigned *idp,const tfloat3 *vel,const float *rhop,const tfloat4 *pospres,const tfloat4 *velrhop){
+void JSphGpu::DgSaveCsvParticles2(std::string filename,int numfile,unsigned pini,unsigned pfin,std::string head,const tfloat3 *pos,const unsigned *idp,const tfloat3 *vel,const float *rhop,const float *visc/*GRR*/,const tfloat4 *pospres,const tfloat4 *velrhop){
   const char met[]="DgSaveCsvParticlesCpu";
   int mpirank=Log->GetMpiRank();
   if(mpirank>=0)filename=string("p")+fun::IntStr(mpirank)+"_"+filename;
@@ -1377,6 +1444,7 @@ void JSphGpu::DgSaveCsvParticles2(std::string filename,int numfile,unsigned pini
     if(pos)pf << ";PosX;PosY;PosZ";
     if(vel)pf << ";VelX;VelY;VelZ";
     if(rhop)pf << ";Rhop";
+	if(visc)pf << ";Visc";	/*GRR*/
     if(pospres)pf << ";Px;Py;Pz;Pp";
     if(velrhop)pf << ";Vx;Vy;Vz;Vr";
     pf << endl;
@@ -1388,6 +1456,7 @@ void JSphGpu::DgSaveCsvParticles2(std::string filename,int numfile,unsigned pini
       if(pos)pf << ";" << fun::Float3Str(pos[p],fmt3);
       if(vel)pf << ";" << fun::Float3Str(vel[p],fmt3);
       if(rhop)pf << ";" << fun::FloatStr(rhop[p],fmt1);
+	  if(visc)pf << ";" << fun::FloatStr(visc[p],fmt1);	/*GRR*/
       if(pospres)pf << ";" <<  fun::FloatStr(pospres[p].x,fmt1) << ";" << fun::FloatStr(pospres[p].y,fmt1) << ";" << fun::FloatStr(pospres[p].z,fmt1) << ";" << fun::FloatStr(pospres[p].w,fmt1);
       if(velrhop)pf << ";" <<  fun::FloatStr(velrhop[p].x,fmt1) << ";" << fun::FloatStr(velrhop[p].y,fmt1) << ";" << fun::FloatStr(velrhop[p].z,fmt1) << ";" << fun::FloatStr(velrhop[p].w,fmt1);
       pf << endl;

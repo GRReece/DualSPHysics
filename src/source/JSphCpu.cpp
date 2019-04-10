@@ -70,12 +70,12 @@ void JSphCpu::InitVars(){
   NpbPer=NpfPer=0;
   WithFloating=false;
 
-  Idpc=NULL; Codec=NULL; Dcellc=NULL; Posc=NULL; Velrhopc=NULL;
-  VelrhopM1c=NULL;                //-Verlet
-  PosPrec=NULL; VelrhopPrec=NULL; //-Symplectic
+  Idpc = NULL; Codec = NULL; Dcellc = NULL; Posc = NULL; Velrhopc = NULL; /*GRR*/ Viscc = NULL;
+  VelrhopM1c = NULL; /*GRR*/ ViscM1c = NULL;                //-Verlet
+  PosPrec = NULL; VelrhopPrec = NULL; /*GRR*/ ViscPrec = NULL; //-Symplectic
   PsPosc=NULL;                    //-Interaccion Pos-Single.
   SpsTauc=NULL; SpsGradvelc=NULL; //-Laminar+SPS. 
-  Arc=NULL; Acec=NULL; Deltac=NULL;
+  Arc=NULL; Acec=NULL; Deltac=NULL; Aviscc=NULL/*GRR*/;
   ShiftPosc=NULL; ShiftDetectc=NULL; //-Shifting.
   Pressc=NULL;
   RidpMove=NULL; 
@@ -151,14 +151,18 @@ void JSphCpu::AllocCpuMemoryParticles(unsigned np,float over){
   if(TDeltaSph==DELTA_DynamicExt)ArraysCpu->AddArrayCount(JArraysCpu::SIZE_4B,1);  //-delta
   ArraysCpu->AddArrayCount(JArraysCpu::SIZE_12B,1); //-ace
   ArraysCpu->AddArrayCount(JArraysCpu::SIZE_16B,1); //-velrhop
+  ArraysCpu->AddArrayCount(JArraysCpu::SIZE_4B, 1); //-viscc  /*GRR*/
+  ArraysCpu->AddArrayCount(JArraysCpu::SIZE_4B, 1); //-aviscc /*GRR*/
   ArraysCpu->AddArrayCount(JArraysCpu::SIZE_24B,2); //-pos
   if(Psingle)ArraysCpu->AddArrayCount(JArraysCpu::SIZE_12B,1); //-pspos
   if(TStep==STEP_Verlet){
     ArraysCpu->AddArrayCount(JArraysCpu::SIZE_16B,1); //-velrhopm1
+	ArraysCpu->AddArrayCount(JArraysCpu::SIZE_4B, 1); //-viscm1c /*GRR*/
   }
   else if(TStep==STEP_Symplectic){
     ArraysCpu->AddArrayCount(JArraysCpu::SIZE_24B,1); //-pospre
     ArraysCpu->AddArrayCount(JArraysCpu::SIZE_16B,1); //-velrhoppre
+	ArraysCpu->AddArrayCount(JArraysCpu::SIZE_4B, 1); //-viscprec /*GRR*/
   }
   if(TVisco==VISCO_LaminarSPS){     
     ArraysCpu->AddArrayCount(JArraysCpu::SIZE_24B,1); //-SpsTau,SpsGradvel
@@ -182,9 +186,12 @@ void JSphCpu::ResizeCpuMemoryParticles(unsigned npnew){
   unsigned    *dcell     =SaveArrayCpu(Np,Dcellc);
   tdouble3    *pos       =SaveArrayCpu(Np,Posc);
   tfloat4     *velrhop   =SaveArrayCpu(Np,Velrhopc);
+  float		  *visc		 =SaveArrayCpu(Np,Viscc);		/*GRR*/
   tfloat4     *velrhopm1 =SaveArrayCpu(Np,VelrhopM1c);
+  float		  *viscm1    =SaveArrayCpu(Np,ViscM1c);		/*GRR*/
   tdouble3    *pospre    =SaveArrayCpu(Np,PosPrec);
   tfloat4     *velrhoppre=SaveArrayCpu(Np,VelrhopPrec);
+  float		  *viscpre	 =SaveArrayCpu(Np,ViscPrec);	/*GRR*/
   tsymatrix3f *spstau    =SaveArrayCpu(Np,SpsTauc);
   //-Frees pointers.
   ArraysCpu->Free(Idpc);
@@ -192,9 +199,12 @@ void JSphCpu::ResizeCpuMemoryParticles(unsigned npnew){
   ArraysCpu->Free(Dcellc);
   ArraysCpu->Free(Posc);
   ArraysCpu->Free(Velrhopc);
+  ArraysCpu->Free(Viscc);		/*GRR*/
   ArraysCpu->Free(VelrhopM1c);
+  ArraysCpu->Free(ViscM1c);		/*GRR*/
   ArraysCpu->Free(PosPrec);
   ArraysCpu->Free(VelrhopPrec);
+  ArraysCpu->Free(ViscPrec);	/*GRR*/
   ArraysCpu->Free(SpsTauc);
   //-Resizes CPU memory allocation.
   const double mbparticle=(double(MemCpuParticles)/(1024*1024))/CpuParticlesSize; //-MB por particula.
@@ -206,9 +216,12 @@ void JSphCpu::ResizeCpuMemoryParticles(unsigned npnew){
   Dcellc  =ArraysCpu->ReserveUint();
   Posc    =ArraysCpu->ReserveDouble3();
   Velrhopc=ArraysCpu->ReserveFloat4();
+  Viscc	  =ArraysCpu->ReserveFloat();	/*GRR*/
   if(velrhopm1) VelrhopM1c =ArraysCpu->ReserveFloat4();
+  if(viscm1)	ViscM1c	   =ArraysCpu->ReserveFloat();		/*GRR*/
   if(pospre)    PosPrec    =ArraysCpu->ReserveDouble3();
   if(velrhoppre)VelrhopPrec=ArraysCpu->ReserveFloat4();
+  if(viscpre)	ViscPrec   =ArraysCpu->ReserveFloat();		/*GRR*/
   if(spstau)    SpsTauc    =ArraysCpu->ReserveSymatrix3f();
   //-Restore data in CPU memory.
   RestoreArrayCpu(Np,idp,Idpc);
@@ -216,9 +229,12 @@ void JSphCpu::ResizeCpuMemoryParticles(unsigned npnew){
   RestoreArrayCpu(Np,dcell,Dcellc);
   RestoreArrayCpu(Np,pos,Posc);
   RestoreArrayCpu(Np,velrhop,Velrhopc);
+  RestoreArrayCpu(Np,visc,Viscc);				/*GRR*/
   RestoreArrayCpu(Np,velrhopm1,VelrhopM1c);
+  RestoreArrayCpu(Np,viscm1,ViscM1c);			/*GRR*/
   RestoreArrayCpu(Np,pospre,PosPrec);
   RestoreArrayCpu(Np,velrhoppre,VelrhopPrec);
+  RestoreArrayCpu(Np, viscpre, ViscPrec);		/*GRR*/
   RestoreArrayCpu(Np,spstau,SpsTauc);
   //-Updates values.
   CpuParticlesSize=npnew;
@@ -260,7 +276,10 @@ void JSphCpu::ReserveBasicArraysCpu(){
   Dcellc=ArraysCpu->ReserveUint();
   Posc=ArraysCpu->ReserveDouble3();
   Velrhopc=ArraysCpu->ReserveFloat4();
-  if(TStep==STEP_Verlet)VelrhopM1c=ArraysCpu->ReserveFloat4();
+  Viscc = ArraysCpu->ReserveFloat();	/*GRR*/
+  if(TStep==STEP_Verlet){
+	  VelrhopM1c=ArraysCpu->ReserveFloat4();
+	  ViscM1c=ArraysCpu->ReserveFloat();}		/*GRR*/
   if(TVisco==VISCO_LaminarSPS)SpsTauc=ArraysCpu->ReserveSymatrix3f();
 }
 
@@ -298,7 +317,7 @@ void JSphCpu::PrintAllocMemory(llong mcpu)const{
 /// - onlynormal: Solo se queda con las normales, elimina las particulas periodicas.
 //==============================================================================
 unsigned JSphCpu::GetParticlesData(unsigned n,unsigned pini,bool cellorderdecode,bool onlynormal
-  ,unsigned *idp,tdouble3 *pos,tfloat3 *vel,float *rhop,typecode *code)
+  ,unsigned *idp,tdouble3 *pos,tfloat3 *vel,float *rhop,float *visc/*GRR*/,typecode *code)
 {
   const char met[]="GetParticlesData";
   unsigned num=n;
@@ -313,6 +332,7 @@ unsigned JSphCpu::GetParticlesData(unsigned n,unsigned pini,bool cellorderdecode
       rhop[p]=vr.w;
     }
   }
+  if (visc)memcpy(visc,Viscc+pini,sizeof(float)*n);	/*GRR*/
   else{
     if(vel) for(unsigned p=0;p<n;p++){ tfloat4 vr=Velrhopc[p+pini]; vel[p]=TFloat3(vr.x,vr.y,vr.z); }
     if(rhop)for(unsigned p=0;p<n;p++)rhop[p]=Velrhopc[p+pini].w;
@@ -334,6 +354,7 @@ unsigned JSphCpu::GetParticlesData(unsigned n,unsigned pini,bool cellorderdecode
         pos[pdel]  =pos[p];
         vel[pdel]  =vel[p];
         rhop[pdel] =rhop[p];
+		visc[pdel] =visc[p];	/*GRR*/
         code2[pdel]=code2[p];
       }
       if(!normal)ndel++;
@@ -398,7 +419,10 @@ void JSphCpu::ConfigRunMode(const JCfgRun *cfg,std::string preinfo){
 //==============================================================================
 void JSphCpu::InitRunCpu(){
   InitRun();
-  if(TStep==STEP_Verlet)memcpy(VelrhopM1c,Velrhopc,sizeof(tfloat4)*Np);
+  if (TStep == STEP_Verlet) {
+	  memcpy(VelrhopM1c, Velrhopc, sizeof(tfloat4)*Np); 
+	  memcpy(ViscM1c, Viscc, sizeof(float)*Np);		/*GRR*/
+  }
   if(TVisco==VISCO_LaminarSPS)memset(SpsTauc,0,sizeof(tsymatrix3f)*Np);
   if(CaseNfloat)InitFloating();
 }
@@ -470,6 +494,7 @@ void JSphCpu::PreInteractionVars_Forces(TpInter tinter,unsigned np,unsigned npb)
   memset(Acec,0,sizeof(tfloat3)*npb);                                //Acec[]=(0,0,0) for bound / para bound
   for(unsigned p=npb;p<np;p++)Acec[p]=Gravity;                       //Acec[]=Gravity for fluid / para fluid
   if(SpsGradvelc)memset(SpsGradvelc+npb,0,sizeof(tsymatrix3f)*npf);  //SpsGradvelc[]=(0,0,0,0,0,0).
+  memset(Aviscc,0,sizeof(float)*np);	/*GRR*/
 
   //-Apply the extra forces to the correct particle sets.
   if(AccInput)AddAccInput();
@@ -494,6 +519,7 @@ void JSphCpu::PreInteraction_Forces(TpInter tinter){
   //-Assign memory.
   Arc=ArraysCpu->ReserveFloat();
   Acec=ArraysCpu->ReserveFloat3();
+  Aviscc=ArraysCpu->ReserveFloat();	/*GRR*/
   if(TDeltaSph==DELTA_DynamicExt)Deltac=ArraysCpu->ReserveFloat();
   if(TShifting!=SHIFT_None){
     ShiftPosc=ArraysCpu->ReserveFloat3();
@@ -586,6 +612,7 @@ void JSphCpu::PosInteraction_Forces(){
   ArraysCpu->Free(Pressc);       Pressc=NULL;
   ArraysCpu->Free(PsPosc);       PsPosc=NULL;
   ArraysCpu->Free(SpsGradvelc);  SpsGradvelc=NULL;
+  ArraysCpu->Free(Aviscc);		 Aviscc=NULL;		/*GRR*/
 }
 
 //==============================================================================
@@ -593,7 +620,7 @@ void JSphCpu::PosInteraction_Forces(){
 /// Devuelve valores de kernel Wendland, gradients: frx, fry y frz.
 //==============================================================================
 void JSphCpu::GetKernelWendland(float rr2,float drx,float dry,float drz
-  ,float &frx,float &fry,float &frz)const
+  ,float &frx,float &fry,float &frz,float &fabc/*GRR*/)const
 {
   const float rad=sqrt(rr2);
   const float qq=rad/H;
@@ -601,6 +628,7 @@ void JSphCpu::GetKernelWendland(float rr2,float drx,float dry,float drz
   const float wqq1=1.f-0.5f*qq;
   const float fac=Bwen*qq*wqq1*wqq1*wqq1/rad;
   frx=fac*drx; fry=fac*dry; frz=fac*drz;
+  fabc=fac;	/*GRR*/
 }
 
 //==============================================================================
@@ -608,7 +636,7 @@ void JSphCpu::GetKernelWendland(float rr2,float drx,float dry,float drz
 /// Devuelve valores de kernel Gaussian, gradients: frx, fry y frz.
 //==============================================================================
 void JSphCpu::GetKernelGaussian(float rr2,float drx,float dry,float drz
-  ,float &frx,float &fry,float &frz)const
+  ,float &frx,float &fry,float &frz,float &fabc/*GRR*/)const
 {
   const float rad=sqrt(rr2);
   const float qq=rad/H;
@@ -617,6 +645,7 @@ void JSphCpu::GetKernelGaussian(float rr2,float drx,float dry,float drz
   //const float wab=Agau*expf(qqexp);
   const float fac=Bgau*qq*expf(qqexp)/rad;
   frx=fac*drx; fry=fac*dry; frz=fac*drz;
+  fabc=fac;	/*GRR*/
 }
 
 //==============================================================================
@@ -624,7 +653,7 @@ void JSphCpu::GetKernelGaussian(float rr2,float drx,float dry,float drz
 /// Devuelve valores de kernel Cubic sin correccion tensil, gradients: frx, fry y frz.
 //==============================================================================
 void JSphCpu::GetKernelCubic(float rr2,float drx,float dry,float drz
-  ,float &frx,float &fry,float &frz)const
+  ,float &frx,float &fry,float &frz,float &fabc/*GRR*/)const
 {
   const float rad=sqrt(rr2);
   const float qq=rad/H;
@@ -641,6 +670,7 @@ void JSphCpu::GetKernelCubic(float rr2,float drx,float dry,float drz
   }
   //-Gradients.
   frx=fac*drx; fry=fac*dry; frz=fac*drz;
+  fabc=fac;	/*GRR*/
 }
 
 //==============================================================================
@@ -698,8 +728,8 @@ void JSphCpu::GetInteractionCells(unsigned rcell
 template<bool psingle,TpKernel tker,TpFtMode ftmode> void JSphCpu::InteractionForcesBound
   (unsigned n,unsigned pinit,tint4 nc,int hdiv,unsigned cellinitial
   ,const unsigned *beginendcell,tint3 cellzero,const unsigned *dcell
-  ,const tdouble3 *pos,const tfloat3 *pspos,const tfloat4 *velrhop,const typecode *code,const unsigned *idp
-  ,float &viscdt,float *ar)const
+  ,const tdouble3 *pos,const tfloat3 *pspos,const tfloat4 *velrhop,const float *visc_/*GRR*/,const typecode *code,const unsigned *idp
+  ,float &viscdt,float *ar,float *avisc/*GRR*/)const
 {
   //-Initialize viscth to calculate max viscdt with OpenMP. | Inicializa viscth para calcular visdt maximo con OpenMP.
   float viscth[OMP_MAXTHREADS*OMP_STRIDE];
@@ -710,12 +740,13 @@ template<bool psingle,TpKernel tker,TpFtMode ftmode> void JSphCpu::InteractionFo
     #pragma omp parallel for schedule (guided)
   #endif
   for(int p1=int(pinit);p1<pfin;p1++){
-    float visc=0,arp1=0;
+    float visc=0,arp1=0,aviscp1=0/*GRR*/;
 
     //-Load data of particle p1. | Carga datos de particula p1.
     const tfloat3 velp1=TFloat3(velrhop[p1].x,velrhop[p1].y,velrhop[p1].z);
     const tfloat3 psposp1=(psingle? pspos[p1]: TFloat3(0));
     const tdouble3 posp1=(psingle? TDouble3(0): pos[p1]);
+	const float viscp1=visc_[p1];	/*GRR*/
 
     //-Obtain limits of interaction. | Obtiene limites de interaccion.
     int cxini,cxfin,yini,yfin,zini,zfin;
@@ -738,10 +769,10 @@ template<bool psingle,TpKernel tker,TpFtMode ftmode> void JSphCpu::InteractionFo
           const float rr2=drx*drx+dry*dry+drz*drz;
           if(rr2<=Fourh2 && rr2>=ALMOSTZERO){
             //-Cubic Spline, Wendland or Gaussian kernel.
-            float frx,fry,frz;
-            if(tker==KERNEL_Wendland)GetKernelWendland(rr2,drx,dry,drz,frx,fry,frz);
-            else if(tker==KERNEL_Gaussian)GetKernelGaussian(rr2,drx,dry,drz,frx,fry,frz);
-            else if(tker==KERNEL_Cubic)GetKernelCubic(rr2,drx,dry,drz,frx,fry,frz);
+            float frx,fry,frz,fabc/*GRR*/;
+            if(tker==KERNEL_Wendland)GetKernelWendland(rr2,drx,dry,drz,frx,fry,frz,fabc/*GRR*/);
+            else if(tker==KERNEL_Gaussian)GetKernelGaussian(rr2,drx,dry,drz,frx,fry,frz,fabc/*GRR*/);
+            else if(tker==KERNEL_Cubic)GetKernelCubic(rr2,drx,dry,drz,frx,fry,frz,fabc/*GRR*/);
 
             //===== Get mass of particle p2 ===== 
             float massp2=MassFluid; //-Contains particle mass of incorrect fluid. | Contiene masa de particula por defecto fluid.
@@ -761,6 +792,7 @@ template<bool psingle,TpKernel tker,TpFtMode ftmode> void JSphCpu::InteractionFo
                 const float dot=drx*dvx + dry*dvy + drz*dvz;
                 const float dot_rr2=dot/(rr2+Eta2);
                 visc=max(dot_rr2,visc);
+				//visc=visc_[p1];		/*GRR*/
               }
             }
           }
@@ -786,9 +818,9 @@ template<bool psingle,TpKernel tker,TpFtMode ftmode,bool lamsps,TpDeltaSph tdelt
   (unsigned n,unsigned pinit,tint4 nc,int hdiv,unsigned cellinitial,float visco
   ,const unsigned *beginendcell,tint3 cellzero,const unsigned *dcell
   ,const tsymatrix3f* tau,tsymatrix3f* gradvel
-  ,const tdouble3 *pos,const tfloat3 *pspos,const tfloat4 *velrhop,const typecode *code,const unsigned *idp
+  ,const tdouble3 *pos,const tfloat3 *pspos,const tfloat4 *velrhop,const float *Visc/*GRR*/,const typecode *code,const unsigned *idp
   ,const float *press 
-  ,float &viscdt,float *ar,tfloat3 *ace,float *delta
+  ,float &viscdt,float *ar,tfloat3 *ace,float *avisc/*GRR*/,float *delta
   ,TpShifting tshifting,tfloat3 *shiftpos,float *shiftdetect)const
 {
   const bool boundp2=(!cellinitial); //-Interaction with type boundary (Bound). | Interaccion con Bound.
@@ -801,7 +833,7 @@ template<bool psingle,TpKernel tker,TpFtMode ftmode,bool lamsps,TpDeltaSph tdelt
     #pragma omp parallel for schedule (guided)
   #endif
   for(int p1=int(pinit);p1<pfin;p1++){
-    float visc=0,arp1=0,deltap1=0;
+    float visc=0,arp1=0,deltap1=0,aviscp1=0/*GRR*/;
     tfloat3 acep1=TFloat3(0);
     tsymatrix3f gradvelp1={0,0,0,0,0,0};
     tfloat3 shiftposp1=TFloat3(0);
@@ -820,6 +852,7 @@ template<bool psingle,TpKernel tker,TpFtMode ftmode,bool lamsps,TpDeltaSph tdelt
     //-Obtain data of particle p1.
     const tfloat3 velp1=TFloat3(velrhop[p1].x,velrhop[p1].y,velrhop[p1].z);
     const float rhopp1=velrhop[p1].w;
+	const float viscp1=Visc[p1];		/*GRR*/
     const tfloat3 psposp1=(psingle? pspos[p1]: TFloat3(0));
     const tdouble3 posp1=(psingle? TDouble3(0): pos[p1]);
     const float pressp1=press[p1];
@@ -846,10 +879,10 @@ template<bool psingle,TpKernel tker,TpFtMode ftmode,bool lamsps,TpDeltaSph tdelt
           const float rr2=drx*drx+dry*dry+drz*drz;
           if(rr2<=Fourh2 && rr2>=ALMOSTZERO){
             //-Cubic Spline, Wendland or Gaussian kernel.
-            float frx,fry,frz;
-            if(tker==KERNEL_Wendland)GetKernelWendland(rr2,drx,dry,drz,frx,fry,frz);
-            else if(tker==KERNEL_Gaussian)GetKernelGaussian(rr2,drx,dry,drz,frx,fry,frz);
-            else if(tker==KERNEL_Cubic)GetKernelCubic(rr2,drx,dry,drz,frx,fry,frz);
+            float frx,fry,frz,fabc/*GRR*/;
+            if(tker==KERNEL_Wendland)GetKernelWendland(rr2,drx,dry,drz,frx,fry,frz,fabc/*GRR*/);
+            else if(tker==KERNEL_Gaussian)GetKernelGaussian(rr2,drx,dry,drz,frx,fry,frz,fabc/*GRR*/);
+            else if(tker==KERNEL_Cubic)GetKernelCubic(rr2,drx,dry,drz,frx,fry,frz,fabc/*GRR*/);
 
             //===== Get mass of particle p2 ===== 
             float massp2=(boundp2? MassBound: MassFluid); //-Contiene masa de particula segun sea bound o fluid.
@@ -914,20 +947,21 @@ template<bool psingle,TpKernel tker,TpFtMode ftmode,bool lamsps,TpDeltaSph tdelt
               else{//-Laminar+SPS viscosity. 
                 {//-Laminar contribution.
                   const float robar2=(rhopp1+velrhop[p2].w);
-                  const float temp=4.f*visco/((rr2+Eta2)*robar2);  //-Simplification of: temp=2.0f*visco/((rr2+CTE.eta2)*robar); robar=(rhopp1+velrhop2.w)*0.5f;
+                  //const float temp=4.f*visco/((rr2+Eta2)*robar2);  //-Simplification of: temp=2.0f*visco/((rr2+CTE.eta2)*robar); robar=(rhopp1+velrhop2.w)*0.5f;
+				  const float temp=2.f*(viscp1+Visc[p2])/((rr2+Eta2)*robar2);			/*GRR*/
                   const float vtemp=massp2*temp*(drx*frx+dry*fry+drz*frz);  
                   acep1.x+=vtemp*dvx; acep1.y+=vtemp*dvy; acep1.z+=vtemp*dvz;
                 }
-                //-SPS turbulence model.
-                float tau_xx=taup1.xx,tau_xy=taup1.xy,tau_xz=taup1.xz; //-taup1 is always zero when p1 is not a fluid particle. | taup1 siempre es cero cuando p1 no es fluid.
-                float tau_yy=taup1.yy,tau_yz=taup1.yz,tau_zz=taup1.zz;
-                if(!boundp2 && !ftp2){//-When p2 is a fluid particle. 
-                  tau_xx+=tau[p2].xx; tau_xy+=tau[p2].xy; tau_xz+=tau[p2].xz;
-                  tau_yy+=tau[p2].yy; tau_yz+=tau[p2].yz; tau_zz+=tau[p2].zz;
-                }
-                acep1.x+=massp2*ftmassp1*(tau_xx*frx+tau_xy*fry+tau_xz*frz);
-                acep1.y+=massp2*ftmassp1*(tau_xy*frx+tau_yy*fry+tau_yz*frz);
-                acep1.z+=massp2*ftmassp1*(tau_xz*frx+tau_yz*fry+tau_zz*frz);
+                //-SPS turbulence model.	/***GRR -- comment out SPS part of viscosity for 2D***/
+                //float tau_xx=taup1.xx,tau_xy=taup1.xy,tau_xz=taup1.xz; //-taup1 is always zero when p1 is not a fluid particle. | taup1 siempre es cero cuando p1 no es fluid.
+                //float tau_yy=taup1.yy,tau_yz=taup1.yz,tau_zz=taup1.zz;
+                //if(!boundp2 && !ftp2){//-When p2 is a fluid particle. 
+                //  tau_xx+=tau[p2].xx; tau_xy+=tau[p2].xy; tau_xz+=tau[p2].xz;
+                //  tau_yy+=tau[p2].yy; tau_yz+=tau[p2].yz; tau_zz+=tau[p2].zz;
+                //}
+                //acep1.x+=massp2*ftmassp1*(tau_xx*frx+tau_xy*fry+tau_xz*frz);
+                //acep1.y+=massp2*ftmassp1*(tau_xy*frx+tau_yy*fry+tau_yz*frz);
+                //acep1.z+=massp2*ftmassp1*(tau_xz*frx+tau_yz*fry+tau_zz*frz);
                 //-Velocity gradients.
                 if(!ftp1){//-When p1 is a fluid particle. 
                   const float volp2=-massp2/velrhop[p2].w;
@@ -949,6 +983,7 @@ template<bool psingle,TpKernel tker,TpFtMode ftmode,bool lamsps,TpDeltaSph tdelt
       if(tdelta==DELTA_DynamicExt)delta[p1]=(delta[p1]==FLT_MAX || deltap1==FLT_MAX? FLT_MAX: delta[p1]+deltap1);
       ar[p1]+=arp1;
       ace[p1]=ace[p1]+acep1;
+	  avisc[p1]+=aviscp1;	/*GRR*/
       const int th=omp_get_thread_num();
       if(visc>viscth[th*OMP_STRIDE])viscth[th*OMP_STRIDE]=visc;
       if(lamsps){
@@ -1117,8 +1152,8 @@ template<bool psingle,TpKernel tker,TpFtMode ftmode,bool lamsps,TpDeltaSph tdelt
   (unsigned np,unsigned npb,unsigned npbok
   ,tuint3 ncells,const unsigned *begincell,tuint3 cellmin,const unsigned *dcell
   ,const tdouble3 *pos,const tfloat3 *pspos,const tfloat4 *velrhop,const typecode *code,const unsigned *idp
-  ,const float *press
-  ,float &viscdt,float* ar,tfloat3 *ace,float *delta
+  ,const float *press,const float *viscc /*GRR*/
+  ,float &viscdt,float* ar,tfloat3 *ace,float *avisc/*GRR*/,float *delta
   ,tsymatrix3f *spstau,tsymatrix3f *spsgradvel
   ,TpShifting tshifting,tfloat3 *shiftpos,float *shiftdetect)const
 {
@@ -1130,9 +1165,9 @@ template<bool psingle,TpKernel tker,TpFtMode ftmode,bool lamsps,TpDeltaSph tdelt
   
   if(npf){
     //-Interaction Fluid-Fluid.
-    InteractionForcesFluid<psingle,tker,ftmode,lamsps,tdelta,shift> (npf,npb,nc,hdiv,cellfluid,Visco                 ,begincell,cellzero,dcell,spstau,spsgradvel,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,tshifting,shiftpos,shiftdetect);
+    InteractionForcesFluid<psingle,tker,ftmode,lamsps,tdelta,shift> (npf,npb,nc,hdiv,cellfluid,Visco                 ,begincell,cellzero,dcell,spstau,spsgradvel,pos,pspos,velrhop,viscc/*GRR*/,code,idp,press,viscdt,ar,ace,avisc/*GRR*/,delta,tshifting,shiftpos,shiftdetect);
     //-Interaction Fluid-Bound.
-    InteractionForcesFluid<psingle,tker,ftmode,lamsps,tdelta,shift> (npf,npb,nc,hdiv,0        ,Visco*ViscoBoundFactor,begincell,cellzero,dcell,spstau,spsgradvel,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,tshifting,shiftpos,shiftdetect);
+    InteractionForcesFluid<psingle,tker,ftmode,lamsps,tdelta,shift> (npf,npb,nc,hdiv,0        ,Visco*ViscoBoundFactor,begincell,cellzero,dcell,spstau,spsgradvel,pos,pspos,velrhop,viscc/*GRR*/,code,idp,press,viscdt,ar,ace,avisc/*GRR*/,delta,tshifting,shiftpos,shiftdetect);
 
     //-Interaction of DEM Floating-Bound & Floating-Floating. //(DEM)
     if(USE_DEM)InteractionForcesDEM<psingle> (CaseNfloat,nc,hdiv,cellfluid,begincell,cellzero,dcell,FtRidp,DemData,pos,pspos,velrhop,code,idp,viscdt,ace);
@@ -1142,7 +1177,7 @@ template<bool psingle,TpKernel tker,TpFtMode ftmode,bool lamsps,TpDeltaSph tdelt
   }
   if(npbok){
     //-Interaction Bound-Fluid.
-    InteractionForcesBound      <psingle,tker,ftmode> (npbok,0,nc,hdiv,cellfluid,begincell,cellzero,dcell,pos,pspos,velrhop,code,idp,viscdt,ar);
+    InteractionForcesBound      <psingle,tker,ftmode> (npbok,0,nc,hdiv,cellfluid,begincell,cellzero,dcell,pos,pspos,velrhop,viscc/*GRR*/,code,idp,viscdt,ar,avisc/*GRR*/);
   }
 }
 
@@ -1153,8 +1188,8 @@ template<bool psingle,TpKernel tker,TpFtMode ftmode,bool lamsps,TpDeltaSph tdelt
 void JSphCpu::Interaction_Forces(unsigned np,unsigned npb,unsigned npbok
   ,tuint3 ncells,const unsigned *begincell,tuint3 cellmin,const unsigned *dcell
   ,const tdouble3 *pos,const tfloat4 *velrhop,const unsigned *idp,const typecode *code
-  ,const float *press
-  ,float &viscdt,float* ar,tfloat3 *ace,float *delta
+  ,const float *press,const float *viscc/*GRR*/
+  ,float &viscdt,float* ar,tfloat3 *ace,float *avisc/*GRR*/,float *delta
   ,tsymatrix3f *spstau,tsymatrix3f *spsgradvel
   ,tfloat3 *shiftpos,float *shiftdetect)const
 {
@@ -1164,67 +1199,67 @@ void JSphCpu::Interaction_Forces(unsigned np,unsigned npb,unsigned npbok
     if(!WithFloating){                   const TpFtMode ftmode=FTMODE_None;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }else if(!UseDEM){                   const TpFtMode ftmode=FTMODE_Sph;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }else{                               const TpFtMode ftmode=FTMODE_Dem;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }
@@ -1232,67 +1267,67 @@ void JSphCpu::Interaction_Forces(unsigned np,unsigned npb,unsigned npbok
     if(!WithFloating){                   const TpFtMode ftmode=FTMODE_None;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }else if(!UseDEM){                   const TpFtMode ftmode=FTMODE_Sph;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }else{                               const TpFtMode ftmode=FTMODE_Dem;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }
@@ -1300,67 +1335,67 @@ void JSphCpu::Interaction_Forces(unsigned np,unsigned npb,unsigned npbok
     if(!WithFloating){                   const TpFtMode ftmode=FTMODE_None;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }else if(!UseDEM){                   const TpFtMode ftmode=FTMODE_Sph;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }else{                               const TpFtMode ftmode=FTMODE_Dem;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }
@@ -1374,8 +1409,8 @@ void JSphCpu::Interaction_Forces(unsigned np,unsigned npb,unsigned npbok
 void JSphCpu::InteractionSimple_Forces(unsigned np,unsigned npb,unsigned npbok
   ,tuint3 ncells,const unsigned *begincell,tuint3 cellmin,const unsigned *dcell
   ,const tfloat3 *pspos,const tfloat4 *velrhop,const unsigned *idp,const typecode *code
-  ,const float *press
-  ,float &viscdt,float* ar,tfloat3 *ace,float *delta
+  ,const float *press,const float *viscc/*GRR*/
+  ,float &viscdt,float* ar,tfloat3 *ace,float *avisc/*GRR*/,float *delta
   ,tsymatrix3f *spstau,tsymatrix3f *spsgradvel
   ,tfloat3 *shiftpos,float *shiftdetect)const
 {
@@ -1385,67 +1420,67 @@ void JSphCpu::InteractionSimple_Forces(unsigned np,unsigned npb,unsigned npbok
     if(!WithFloating){                   const TpFtMode ftmode=FTMODE_None;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }else if(!UseDEM){                   const TpFtMode ftmode=FTMODE_Sph;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }else{                               const TpFtMode ftmode=FTMODE_Dem;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }
@@ -1453,67 +1488,67 @@ void JSphCpu::InteractionSimple_Forces(unsigned np,unsigned npb,unsigned npbok
     if(!WithFloating){                   const TpFtMode ftmode=FTMODE_None;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }else if(!UseDEM){                   const TpFtMode ftmode=FTMODE_Sph;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }else{                               const TpFtMode ftmode=FTMODE_Dem;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }
@@ -1521,67 +1556,67 @@ void JSphCpu::InteractionSimple_Forces(unsigned np,unsigned npb,unsigned npbok
     if(!WithFloating){                   const TpFtMode ftmode=FTMODE_None;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }else if(!UseDEM){                   const TpFtMode ftmode=FTMODE_Sph;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }else{                               const TpFtMode ftmode=FTMODE_Dem;
       if(TShifting){                     const bool tshift=true;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }else{                             const bool tshift=false;
         if(TVisco==VISCO_LaminarSPS){    const bool lamsps=true;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }else{                           const bool lamsps=false;
-          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
-          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscdt,ar,ace,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_None)      Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_None,tshift>       (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_Dynamic)   Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_Dynamic,tshift>    (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
+          if(TDeltaSph==DELTA_DynamicExt)Interaction_ForcesT<psingle,tker,ftmode,lamsps,DELTA_DynamicExt,tshift> (np,npb,npbok,ncells,begincell,cellmin,dcell,pos,pspos,velrhop,code,idp,press,viscc/*GRR*/,viscdt,ar,ace,avisc/*GRR*/,delta,spstau,spsgradvel,TShifting,shiftpos,shiftdetect);
         }
       }
     }
@@ -1659,8 +1694,8 @@ void JSphCpu::UpdatePos(tdouble3 rpos,double movx,double movy,double movz
 /// Calculate new values of position, velocity & density for fluid (using Verlet).
 /// Calcula nuevos valores de posicion, velocidad y densidad para el fluido (usando Verlet).
 //==============================================================================
-template<bool shift> void JSphCpu::ComputeVerletVarsFluid(const tfloat4 *velrhop1,const tfloat4 *velrhop2,double dt,double dt2
-  ,tdouble3 *pos,unsigned *dcell,typecode *code,tfloat4 *velrhopnew)const
+template<bool shift> void JSphCpu::ComputeVerletVarsFluid(const tfloat4 *velrhop1,const tfloat4 *velrhop2,const float *visc1/*GRR*/,const float *visc2/*GRR*/,double dt,double dt2
+  ,tdouble3 *pos,unsigned *dcell,typecode *code,tfloat4 *velrhopnew,float *viscnew/*GRR*/)const
 {
   const double dt205=0.5*dt*dt;
   const int pini=int(Npb),pfin=int(Np),npf=int(Np-Npb);
@@ -1687,10 +1722,13 @@ template<bool shift> void JSphCpu::ComputeVerletVarsFluid(const tfloat4 *velrhop
       velrhopnew[p].y=float(double(velrhop2[p].y)+double(Acec[p].y)*dt2);
       velrhopnew[p].z=float(double(velrhop2[p].z)+double(Acec[p].z)*dt2);
       velrhopnew[p].w=rhopnew;
+	  //-Update viscosity	/*GRR*/ currently no change
+	  viscnew[p]=visc1[p];	/*GRR*/
     }
     else{//-Floating Particles.
       velrhopnew[p]=velrhop1[p];
       velrhopnew[p].w=(rhopnew<RhopZero? RhopZero: rhopnew); //-Avoid fluid particles being absorved by floating ones. | Evita q las floating absorvan a las fluidas.
+	  viscnew[p]=visc1[p];		/*GRR*/
     }
   }
 }
@@ -1702,7 +1740,7 @@ template<bool shift> void JSphCpu::ComputeVerletVarsFluid(const tfloat4 *velrhop
 /// Calcula nuevos valores de densidad y pone velocidad a cero para el contorno 
 /// (fixed+moving, no floating).
 //==============================================================================
-void JSphCpu::ComputeVelrhopBound(const tfloat4* velrhopold,double armul,tfloat4* velrhopnew)const{
+void JSphCpu::ComputeVelrhopBound(const tfloat4* velrhopold,const float* viscold/*GRR*/,double armul,tfloat4* velrhopnew,float* viscnew/*GRR*/)const{
   const int npb=int(Npb);
   #ifdef OMP_USE
     #pragma omp parallel for schedule (static) if(npb>OMP_LIMIT_COMPUTESTEP)
@@ -1710,6 +1748,7 @@ void JSphCpu::ComputeVelrhopBound(const tfloat4* velrhopold,double armul,tfloat4
   for(int p=0;p<npb;p++){
     const float rhopnew=float(double(velrhopold[p].w)+armul*Arc[p]);
     velrhopnew[p]=TFloat4(0,0,0,(rhopnew<RhopZero? RhopZero: rhopnew));//-Avoid fluid particles being absorved by boundary ones. | Evita q las boundary absorvan a las fluidas.
+	viscnew[p]=viscold[p];		/*GRR*/  //currently no change
   }
 }
 
@@ -1722,18 +1761,19 @@ void JSphCpu::ComputeVerlet(double dt){
   VerletStep++;
   if(VerletStep<VerletSteps){
     const double twodt=dt+dt;
-    if(TShifting)ComputeVerletVarsFluid<true>  (Velrhopc,VelrhopM1c,dt,twodt,Posc,Dcellc,Codec,VelrhopM1c);
-    else         ComputeVerletVarsFluid<false> (Velrhopc,VelrhopM1c,dt,twodt,Posc,Dcellc,Codec,VelrhopM1c);
-    ComputeVelrhopBound(VelrhopM1c,twodt,VelrhopM1c);
+    if(TShifting)ComputeVerletVarsFluid<true>  (Velrhopc,VelrhopM1c,Viscc/*GRR*/,ViscM1c/*GRR*/,dt,twodt,Posc,Dcellc,Codec,VelrhopM1c,ViscM1c/*GRR*/);
+    else         ComputeVerletVarsFluid<false> (Velrhopc,VelrhopM1c,Viscc/*GRR*/,ViscM1c/*GRR*/,dt,twodt,Posc,Dcellc,Codec,VelrhopM1c,ViscM1c/*GRR*/);
+    ComputeVelrhopBound(VelrhopM1c,ViscM1c/*GRR*/,twodt,VelrhopM1c,ViscM1c/*GRR*/);
   }
   else{
-    if(TShifting)ComputeVerletVarsFluid<true>  (Velrhopc,Velrhopc,dt,dt,Posc,Dcellc,Codec,VelrhopM1c);
-    else         ComputeVerletVarsFluid<false> (Velrhopc,Velrhopc,dt,dt,Posc,Dcellc,Codec,VelrhopM1c);
-    ComputeVelrhopBound(Velrhopc,dt,VelrhopM1c);
+    if(TShifting)ComputeVerletVarsFluid<true>  (Velrhopc,Velrhopc,Viscc/*GRR*/,Viscc/*GRR*/,dt,dt,Posc,Dcellc,Codec,VelrhopM1c,ViscM1c/*GRR*/);
+    else         ComputeVerletVarsFluid<false> (Velrhopc,Velrhopc,Viscc/*GRR*/,Viscc/*GRR*/,dt,dt,Posc,Dcellc,Codec,VelrhopM1c,ViscM1c/*GRR*/);
+    ComputeVelrhopBound(Velrhopc,Viscc/*GRR*/,dt,VelrhopM1c,ViscM1c/*GRR*/);
     VerletStep=0;
   }
   //-New values are calculated en VelrhopM1c. | Los nuevos valores se calculan en VelrhopM1c.
   swap(Velrhopc,VelrhopM1c);     //-Swap Velrhopc & VelrhopM1c. | Intercambia Velrhopc y VelrhopM1c.
+  swap(Viscc,ViscM1c);		/*GRR*/
   TmcStop(Timers,TMC_SuComputeStep);
 }
 
@@ -1755,9 +1795,11 @@ template<bool shift> void JSphCpu::ComputeSymplecticPreT(double dt){
   //-Assign memory to variables Pre. | Asigna memoria a variables Pre.
   PosPrec=ArraysCpu->ReserveDouble3();
   VelrhopPrec=ArraysCpu->ReserveFloat4();
+  ViscPrec=ArraysCpu->ReserveFloat();		/*GRR*/
   //-Change data to variables Pre to calculate new data. | Cambia datos a variables Pre para calcular nuevos datos.
   swap(PosPrec,Posc);         //Put value of Pos[] in PosPre[].         | Es decir... PosPre[] <= Pos[].
   swap(VelrhopPrec,Velrhopc); //Put value of Velrhop[] in VelrhopPre[]. | Es decir... VelrhopPre[] <= Velrhop[].
+  swap(ViscPrec,Viscc);		/*GRR*/
   //-Calculate new values of particles. | Calcula nuevos datos de particulas.
   const double dt05=dt*.5;
   
@@ -1770,6 +1812,7 @@ template<bool shift> void JSphCpu::ComputeSymplecticPreT(double dt){
     const tfloat4 vr=VelrhopPrec[p];
     const float rhopnew=float(double(vr.w)+dt05*Arc[p]);
     Velrhopc[p]=TFloat4(vr.x,vr.y,vr.z,(rhopnew<RhopZero? RhopZero: rhopnew));//-Avoid fluid particles being absorbed by boundary ones. | Evita q las boundary absorvan a las fluidas.
+	Viscc[p]=ViscPrec[p];		/*GRR*/
   }
 
   //-Calculate new values of fluid. | Calcula nuevos datos del fluido.
@@ -1797,12 +1840,14 @@ template<bool shift> void JSphCpu::ComputeSymplecticPreT(double dt){
       Velrhopc[p].y=float(double(VelrhopPrec[p].y)+double(Acec[p].y)* dt05);
       Velrhopc[p].z=float(double(VelrhopPrec[p].z)+double(Acec[p].z)* dt05);
       Velrhopc[p].w=rhopnew;
+	  Viscc[p]=ViscPrec[p];		/*GRR*/
     }
     else{//-Floating Particles.
       Velrhopc[p]=VelrhopPrec[p];
       Velrhopc[p].w=(rhopnew<RhopZero? RhopZero: rhopnew); //-Avoid fluid particles being absorbed by floating ones. | Evita q las floating absorvan a las fluidas.
       //-Copy position. | Copia posicion.
       Posc[p]=PosPrec[p];
+	  Viscc[p]=ViscPrec[p];		/*GRR*/
     }
   }
 
@@ -1837,6 +1882,7 @@ template<bool shift> void JSphCpu::ComputeSymplecticCorrT(double dt){
     const double epsilon_rdot=(-double(Arc[p])/double(Velrhopc[p].w))*dt;
     const float rhopnew=float(double(VelrhopPrec[p].w) * (2.-epsilon_rdot)/(2.+epsilon_rdot));
     Velrhopc[p]=TFloat4(0,0,0,(rhopnew<RhopZero? RhopZero: rhopnew));//-Avoid fluid particles being absorbed by boundary ones. | Evita q las boundary absorvan a las fluidas.
+	Viscc[p]=ViscPrec[p];		/*GRR*/
   }
 
   //-Calculate fluid values. | Calcula datos de fluido.
@@ -1854,6 +1900,7 @@ template<bool shift> void JSphCpu::ComputeSymplecticCorrT(double dt){
       Velrhopc[p].y=float(double(VelrhopPrec[p].y) + double(Acec[p].y) * dt); 
       Velrhopc[p].z=float(double(VelrhopPrec[p].z) + double(Acec[p].z) * dt); 
       Velrhopc[p].w=rhopnew;
+	  Viscc[p]=ViscPrec[p];		/*GRR*/
       //-Calculate displacement and update position. | Calcula desplazamiento y actualiza posicion.
       double dx=(double(VelrhopPrec[p].x)+double(Velrhopc[p].x)) * dt05; 
       double dy=(double(VelrhopPrec[p].y)+double(Velrhopc[p].y)) * dt05; 
@@ -1871,12 +1918,14 @@ template<bool shift> void JSphCpu::ComputeSymplecticCorrT(double dt){
       Velrhopc[p].w=(rhopnew<RhopZero? RhopZero: rhopnew); //-Avoid fluid particles being absorbed by floating ones. | Evita q las floating absorvan a las fluidas.
       //-Copy position. | Copia posicion.
       Posc[p]=PosPrec[p];
+	  Viscc[p]=ViscPrec[p];		/*GRR*/
     }
   }
 
   //-Free memory assigned to variables Pre and ComputeSymplecticPre(). | Libera memoria asignada a variables Pre en ComputeSymplecticPre().
   ArraysCpu->Free(PosPrec);      PosPrec=NULL;
   ArraysCpu->Free(VelrhopPrec);  VelrhopPrec=NULL;
+  ArraysCpu->Free(ViscPrec);	 ViscPrec=NULL;		/*GRR*/
   TmcStop(Timers,TMC_SuComputeStep);
 }
 

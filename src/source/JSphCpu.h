@@ -72,13 +72,16 @@ protected:
   unsigned *Dcellc;  ///<Cells inside DomCells coded with DomCellCode. | Celda dentro de DomCells codificada con DomCellCode.
   tdouble3 *Posc;
   tfloat4 *Velrhopc;
+  float *Viscc;	  /*GRR*/
     
   //-Variables for compute step: VERLET. | Vars. para compute step: VERLET.
   tfloat4 *VelrhopM1c;  ///<Verlet: in order to keep previous values. | Verlet: para guardar valores anteriores.
+  float *ViscM1c;	  /*GRR*/
 
   //-Variables for compute step: SYMPLECTIC. | Vars. para compute step: SYMPLECTIC.
   tdouble3 *PosPrec;    ///<Sympletic: in order to keep previous values. | Sympletic: para guardar valores en predictor.
   tfloat4 *VelrhopPrec;
+  float *ViscPrec;	  /*GRR*/
 
   //-Variables for floating bodies.
   unsigned *FtRidp;             ///<Identifier to access to the particles of the floating object [CaseNfloat].
@@ -90,6 +93,7 @@ protected:
 
   tfloat3 *Acec;         ///<Sum of interaction forces | Acumula fuerzas de interaccion
   float *Arc; 
+  float *Aviscc;	/*GRR- derivative of viscosity*/
   float *Deltac;         ///<Adjusted sum with Delta-SPH with DELTA_DynamicExt | Acumula ajuste de Delta-SPH con DELTA_DynamicExt
 
   tfloat3 *ShiftPosc;    ///<Particle displacement using Shifting.
@@ -144,7 +148,7 @@ protected:
   void PrintAllocMemory(llong mcpu)const;
 
   unsigned GetParticlesData(unsigned n,unsigned pini,bool cellorderdecode,bool onlynormal
-    ,unsigned *idp,tdouble3 *pos,tfloat3 *vel,float *rhop,typecode *code);
+    ,unsigned *idp,tdouble3 *pos,tfloat3 *vel,float *rhop,float *visc /*GRR*/,typecode *code);
   void ConfigOmp(const JCfgRun *cfg);
 
   void ConfigRunMode(const JCfgRun *cfg,std::string preinfo="");
@@ -161,9 +165,9 @@ protected:
   void PreInteraction_Forces(TpInter tinter);
   void PosInteraction_Forces();
 
-  inline void GetKernelWendland(float rr2,float drx,float dry,float drz,float &frx,float &fry,float &frz)const;
-  inline void GetKernelGaussian(float rr2,float drx,float dry,float drz,float &frx,float &fry,float &frz)const;
-  inline void GetKernelCubic(float rr2,float drx,float dry,float drz,float &frx,float &fry,float &frz)const;
+  inline void GetKernelWendland(float rr2,float drx,float dry,float drz,float &frx,float &fry,float &frz,float &fabc/*GRR*/)const;
+  inline void GetKernelGaussian(float rr2,float drx,float dry,float drz,float &frx,float &fry,float &frz,float &fabc/*GRR*/)const;
+  inline void GetKernelCubic(float rr2,float drx,float dry,float drz,float &frx,float &fry,float &frz,float &fabc/*GRR*/)const;
   inline float GetKernelCubicTensil(float rr2,float rhopp1,float pressp1,float rhopp2,float pressp2)const;
 
   inline void GetInteractionCells(unsigned rcell
@@ -173,16 +177,16 @@ protected:
   template<bool psingle,TpKernel tker,TpFtMode ftmode> void InteractionForcesBound
     (unsigned n,unsigned pini,tint4 nc,int hdiv,unsigned cellinitial
     ,const unsigned *beginendcell,tint3 cellzero,const unsigned *dcell
-    ,const tdouble3 *pos,const tfloat3 *pspos,const tfloat4 *velrhopp,const typecode *code,const unsigned *id
-    ,float &viscdt,float *ar)const;
+    ,const tdouble3 *pos,const tfloat3 *pspos,const tfloat4 *velrhopp,const float *visc_/*GRR*/,const typecode *code,const unsigned *id
+    ,float &viscdt,float *ar,float *avisc/*GRR*/)const;
 
   template<bool psingle,TpKernel tker,TpFtMode ftmode,bool lamsps,TpDeltaSph tdelta,bool shift> void InteractionForcesFluid
     (unsigned n,unsigned pini,tint4 nc,int hdiv,unsigned cellfluid,float visco
     ,const unsigned *beginendcell,tint3 cellzero,const unsigned *dcell
     ,const tsymatrix3f* tau,tsymatrix3f* gradvel
-    ,const tdouble3 *pos,const tfloat3 *pspos,const tfloat4 *velrhop,const typecode *code,const unsigned *idp
+    ,const tdouble3 *pos,const tfloat3 *pspos,const tfloat4 *velrhop,const float *visc/*GRR*/,const typecode *code,const unsigned *idp
     ,const float *press
-    ,float &viscdt,float *ar,tfloat3 *ace,float *delta
+    ,float &viscdt,float *ar,tfloat3 *ace,float *avisc/*GRR*/,float *delta
     ,TpShifting tshifting,tfloat3 *shiftpos,float *shiftdetect)const;
 
   template<bool psingle> void InteractionForcesDEM
@@ -196,32 +200,32 @@ protected:
     (unsigned np,unsigned npb,unsigned npbok
     ,tuint3 ncells,const unsigned *begincell,tuint3 cellmin,const unsigned *dcell
     ,const tdouble3 *pos,const tfloat3 *pspos,const tfloat4 *velrhop,const typecode *code,const unsigned *idp
-    ,const float *press
-    ,float &viscdt,float* ar,tfloat3 *ace,float *delta
+    ,const float *press,const float *viscc /*GRR*/
+    ,float &viscdt,float* ar,tfloat3 *ace,float *avisc/*GRR*/,float *delta
     ,tsymatrix3f *spstau,tsymatrix3f *spsgradvel
     ,TpShifting tshifting,tfloat3 *shiftpos,float *shiftdetect)const;
 
   void Interaction_Forces(unsigned np,unsigned npb,unsigned npbok
     ,tuint3 ncells,const unsigned *begincell,tuint3 cellmin,const unsigned *dcell
     ,const tdouble3 *pos,const tfloat4 *velrhop,const unsigned *idp,const typecode *code
-    ,const float *press
-    ,float &viscdt,float* ar,tfloat3 *ace,float *delta
+    ,const float *press,const float *viscc/*GRR*/
+    ,float &viscdt,float* ar,tfloat3 *ace,float *avisc/*GRR*/,float *delta
     ,tsymatrix3f *spstau,tsymatrix3f *spsgradvel
     ,tfloat3 *shiftpos,float *shiftdetect)const;
 
   void InteractionSimple_Forces(unsigned np,unsigned npb,unsigned npbok
     ,tuint3 ncells,const unsigned *begincell,tuint3 cellmin,const unsigned *dcell
     ,const tfloat3 *pspos,const tfloat4 *velrhop,const unsigned *idp,const typecode *code
-    ,const float *press
-    ,float &viscdt,float* ar,tfloat3 *ace,float *delta
+    ,const float *press,const float *viscc/*GRR*/
+    ,float &viscdt,float* ar,tfloat3 *ace,float *avisc/*GRR*/,float *delta
     ,tsymatrix3f *spstau,tsymatrix3f *spsgradvel
     ,tfloat3 *shiftpos,float *shiftdetect)const;
 
 
   void ComputeSpsTau(unsigned n,unsigned pini,const tfloat4 *velrhop,const tsymatrix3f *gradvel,tsymatrix3f *tau)const;
 
-  template<bool shift> void ComputeVerletVarsFluid(const tfloat4 *velrhop1,const tfloat4 *velrhop2,double dt,double dt2,tdouble3 *pos,unsigned *cell,typecode *code,tfloat4 *velrhopnew)const;
-  void ComputeVelrhopBound(const tfloat4* velrhopold,double armul,tfloat4* velrhopnew)const;
+  template<bool shift> void ComputeVerletVarsFluid(const tfloat4 *velrhop1,const tfloat4 *velrhop2,const float *visc1/*GRR*/,const float *visc2/*GRR*/,double dt,double dt2,tdouble3 *pos,unsigned *cell,typecode *code,tfloat4 *velrhopnew,float *viscnew/*GRR*/)const;
+  void ComputeVelrhopBound(const tfloat4* velrhopold,const float* viscold/*GRR*/,double armul,tfloat4* velrhopnew,float* viscnew/*GRR*/)const;
 
   void ComputeVerlet(double dt);
   template<bool shift> void ComputeSymplecticPreT(double dt);

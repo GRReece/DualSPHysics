@@ -81,7 +81,9 @@ public:
   int VerletSteps;
   TpKernel TKernel;
   TpVisco TVisco;
+  /***GRR visco array***/
   float Visco;
+  //float Visco[2];
   float ViscoBoundFactor;
   double TimeMax,TimePart;
   float DeltaSph;

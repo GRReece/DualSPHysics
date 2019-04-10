@@ -109,9 +109,9 @@ void Interaction_Forces(bool psingle,TpKernel tkernel,bool floating,bool usedem,
   ,unsigned np,unsigned npb,unsigned npbok,tuint3 ncells
   ,const int2 *begincell,tuint3 cellmin,const unsigned *dcell
   ,const double2 *posxy,const double *posz,const float4 *pospress
-  ,const float4 *velrhop,const typecode *code,const unsigned *idp
+  ,const float4 *velrhop,const typecode *code,const unsigned *idp,const float *visc/*GRR*/
   ,const float *ftomassp,const tsymatrix3f *tau,tsymatrix3f *gradvel
-  ,float *viscdt,float* ar,float3 *ace,float *delta
+  ,float *viscdt,float* ar,float3 *ace,float *avisc/*GRR*/,float *delta
   ,TpShifting tshifting,float3 *shiftpos,float *shiftdetect
   ,bool simulate2d,StKerInfo *kerinfo,JBlockSizeAuto *bsauto);
 
@@ -119,8 +119,8 @@ void Interaction_Forces(bool psingle,TpKernel tkernel,bool floating,bool usedem,
 void Interaction_ForcesDem(bool psingle,TpCellMode cellmode,unsigned bsize
   ,unsigned nfloat,tuint3 ncells,const int2 *begincell,tuint3 cellmin,const unsigned *dcell
   ,const unsigned *ftridp,const float4 *demdata,float dtforce
-  ,const double2 *posxy,const double *posz,const float4 *pospress,const float4 *velrhop
-  ,const typecode *code,const unsigned *idp,float *viscdt,float3 *ace,StKerInfo *kerinfo);
+  ,const double2 *posxy,const double *posz,const float4 *pospress,const float4 *velrhop,const float *visc/*GRR*/
+  ,const typecode *code,const unsigned *idp,float *viscdt,float3 *ace,float *avisc/*GRR*/,StKerInfo *kerinfo);
 
 //-Kernels for calculating the Laminar+SPS viscosity.
 void ComputeSpsTau(unsigned np,unsigned npb,float smag,float blin
@@ -136,18 +136,18 @@ void RunShifting(unsigned np,unsigned npb,double dt
 
 //-Kernels for ComputeStep (vel & rhop).
 void ComputeStepVerlet(bool floating,bool shift,unsigned np,unsigned npb
-  ,const float4 *velrhop1,const float4 *velrhop2
-  ,const float *ar,const float3 *ace,const float3 *shiftpos
+  ,const float4 *velrhop1,const float4 *velrhop2,const float *visc1/*GRR*/,const float *visc2/*GRR*/
+  ,const float *ar,const float3 *ace,const float *avisc/*GRR*/,const float3 *shiftpos
   ,double dt,double dt2,float rhopoutmin,float rhopoutmax
-  ,typecode *code,double2 *movxy,double *movz,float4 *velrhopnew);
+  ,typecode *code,double2 *movxy,double *movz,float4 *velrhopnew,float *viscnew/*GRR*/);
 void ComputeStepSymplecticPre(bool floating,bool shift,unsigned np,unsigned npb
-  ,const float4 *velrhoppre,const float *ar,const float3 *ace,const float3 *shiftpos
+  ,const float4 *velrhoppre,const float *viscpre/*GRR*/,const float *ar,const float3 *ace,const float *avisc/*GRR*/,const float3 *shiftpos
   ,double dtm,float rhopoutmin,float rhopoutmax
-  ,typecode *code,double2 *movxy,double *movz,float4 *velrhop);
+  ,typecode *code,double2 *movxy,double *movz,float4 *velrhop,float *visc/*GRR*/);
 void ComputeStepSymplecticCor(bool floating,bool shift,unsigned np,unsigned npb
-  ,const float4 *velrhoppre,const float *ar,const float3 *ace,const float3 *shiftpos
+  ,const float4 *velrhoppre,const float *viscpre/*GRR*/,const float *ar,const float3 *ace,const float *avisc/*GRR*/,const float3 *shiftpos
   ,double dtm,double dt,float rhopoutmin,float rhopoutmax
-  ,typecode *code,double2 *movxy,double *movz,float4 *velrhop);
+  ,typecode *code,double2 *movxy,double *movz,float4 *velrhop,float *visc/*GRR*/);
 
 //-Kernels for ComputeStep (position).
 void ComputeStepPos(byte periactive,bool floating,unsigned np,unsigned npb,const double2 *movxy,const double *movz,double2 *posxy,double *posz,unsigned *dcell,typecode *code);

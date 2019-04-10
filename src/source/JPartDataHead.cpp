@@ -226,7 +226,9 @@ void JPartDataHead::SaveFile(std::string dir){
   bdat.SetvDouble3("PeriZinc",PeriZinc);
 
   bdat.SetvUint("ViscoType",unsigned(ViscoType));
-  bdat.SetvFloat("ViscoValue",ViscoValue);
+  bdat.SetvFloat("ViscoValue",ViscoValue);	/*GRR*/
+  //bdat.SetvFloat("ViscoValue1", ViscoValue[0]);
+  //bdat.SetvFloat("ViscoValue2", ViscoValue[1]);
   bdat.SetvFloat("ViscoBoundFactor",ViscoBoundFactor);
 
   bdat.SetvBool("Splitting",Splitting);
@@ -309,7 +311,9 @@ void JPartDataHead::LoadFile(std::string dir){
   PeriZinc=bdat.GetvDouble3("PeriZinc");
 
   ViscoType       =TpVisco(bdat.GetvUint("ViscoType"));
-  ViscoValue      =bdat.GetvFloat("ViscoValue");
+  ViscoValue      =bdat.GetvFloat("ViscoValue");	/*GRR*/
+  //ViscoValue[0] = bdat.GetvFloat("ViscoValue1");
+  //ViscoValue[1] = bdat.GetvFloat("ViscoValue2");
   ViscoBoundFactor=bdat.GetvFloat("ViscoBoundFactor");
 
   Splitting=bdat.GetvBool("Splitting");

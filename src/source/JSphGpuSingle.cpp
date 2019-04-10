@@ -140,6 +140,17 @@ void JSphGpuSingle::ConfigDomain(){
   memcpy(Idp,PartsLoaded->GetIdp(),sizeof(unsigned)*Np);
   memcpy(Velrhop,PartsLoaded->GetVelRhop(),sizeof(tfloat4)*Np);
 
+  //-Initial viscosity		=====/*GRR*/=====
+  unsigned mkfluid1 = 1, mkfluid2 = 2;	//-by mk
+  for (unsigned j = 0; j<Np; j++)
+	  if (MkInfo->GetMkById(Idp[j]) == mkfluid1)
+		  Visc[j] = Visco;
+	  else if (MkInfo->GetMkById(Idp[j]) == mkfluid2)
+		  Visc[j] = 0.25f*Visco;
+	  else
+		  Visc[j] = Visco*ViscoBoundFactor;
+  //=================
+
   //-Computes radius of floating bodies.
   if(CaseNfloat && PeriActive!=0 && !PartBegin)CalcFloatingRadius(Np,AuxPos,Idp);
 
@@ -317,28 +328,35 @@ void JSphGpuSingle::RunCellDivide(bool updateperiodic){
     double2*  posxyg=ArraysGpu->ReserveDouble2();
     double*   poszg=ArraysGpu->ReserveDouble();
     float4*   velrhopg=ArraysGpu->ReserveFloat4();
-    CellDivSingle->SortBasicArrays(Idpg,Codeg,Dcellg,Posxyg,Poszg,Velrhopg,idpg,codeg,dcellg,posxyg,poszg,velrhopg);
+	float*	  viscg=ArraysGpu->ReserveFloat();		/*GRR*/
+    CellDivSingle->SortBasicArrays(Idpg,Codeg,Dcellg,Posxyg,Poszg,Velrhopg,Viscg/*GRR*/,idpg,codeg,dcellg,posxyg,poszg,velrhopg,viscg/*GRR*/);
     swap(Idpg,idpg);           ArraysGpu->Free(idpg);
     swap(Codeg,codeg);         ArraysGpu->Free(codeg);
     swap(Dcellg,dcellg);       ArraysGpu->Free(dcellg);
     swap(Posxyg,posxyg);       ArraysGpu->Free(posxyg);
     swap(Poszg,poszg);         ArraysGpu->Free(poszg);
     swap(Velrhopg,velrhopg);   ArraysGpu->Free(velrhopg);
+	swap(Viscg,viscg);		   ArraysGpu->Free(viscg);		/*GRR*/
   }
   if(TStep==STEP_Verlet){
     float4* velrhopg=ArraysGpu->ReserveFloat4();
     CellDivSingle->SortDataArrays(VelrhopM1g,velrhopg);
     swap(VelrhopM1g,velrhopg);   ArraysGpu->Free(velrhopg);
+	float* viscg=ArraysGpu->ReserveFloat();		/*GRR*/
+	CellDivSingle->SortDataArrays(ViscM1g,viscg);	/*GRR*/
+	swap(ViscM1g, viscg);		 ArraysGpu->Free(viscg);	/*GRR*/
   }
-  else if(TStep==STEP_Symplectic && (PosxyPreg || PoszPreg || VelrhopPreg)){ //-In reality, only necessary in the corrector not the predictor step??? | En realidad solo es necesario en el divide del corrector, no en el predictor??? 
-    if(!PosxyPreg || !PoszPreg || !VelrhopPreg)RunException(met,"Symplectic data is invalid.") ;
+  else if(TStep==STEP_Symplectic && (PosxyPreg || PoszPreg || VelrhopPreg || ViscPreg/*GRR*/)){ //-In reality, only necessary in the corrector not the predictor step??? | En realidad solo es necesario en el divide del corrector, no en el predictor??? 
+    if(!PosxyPreg || !PoszPreg || !VelrhopPreg || !ViscPreg/*GRR*/)RunException(met,"Symplectic data is invalid.") ;
     double2* posxyg=ArraysGpu->ReserveDouble2();
     double* poszg=ArraysGpu->ReserveDouble();
     float4* velrhopg=ArraysGpu->ReserveFloat4();
-    CellDivSingle->SortDataArrays(PosxyPreg,PoszPreg,VelrhopPreg,posxyg,poszg,velrhopg);
+	float* viscg=ArraysGpu->ReserveFloat();		/*GRR*/
+    CellDivSingle->SortDataArrays(PosxyPreg,PoszPreg,VelrhopPreg,ViscPreg/*GRR*/,posxyg,poszg,velrhopg,viscg/*GRR*/);
     swap(PosxyPreg,posxyg);      ArraysGpu->Free(posxyg);
     swap(PoszPreg,poszg);        ArraysGpu->Free(poszg);
     swap(VelrhopPreg,velrhopg);  ArraysGpu->Free(velrhopg);
+	swap(ViscPreg,viscg);		 ArraysGpu->Free(viscg);	/*GRR*/
   }
   if(TVisco==VISCO_LaminarSPS){
     tsymatrix3f *spstaug=ArraysGpu->ReserveSymatrix3f();
@@ -396,7 +414,7 @@ void JSphGpuSingle::Interaction_Forces(TpInter tinter){
   unsigned bsbound=BlockSizes.forcesbound;
 
   if(BsAuto && !(Nstep%BsAuto->GetStepsInterval())){ //-Every certain number of steps. | Cada cierto numero de pasos.
-    cusph::Interaction_Forces(Psingle,TKernel,WithFloating,UseDEM,lamsps,TDeltaSph,CellMode,Visco*ViscoBoundFactor,Visco,bsbound,bsfluid,Np,Npb,NpbOk,CellDivSingle->GetNcells(),CellDivSingle->GetBeginCell(),CellDivSingle->GetCellDomainMin(),Dcellg,Posxyg,Poszg,PsPospressg,Velrhopg,Codeg,Idpg,FtoMasspg,SpsTaug,SpsGradvelg,ViscDtg,Arg,Aceg,Deltag,TShifting,ShiftPosg,ShiftDetectg,Simulate2D,NULL,BsAuto);
+    cusph::Interaction_Forces(Psingle,TKernel,WithFloating,UseDEM,lamsps,TDeltaSph,CellMode,Visco*ViscoBoundFactor,Visco,bsbound,bsfluid,Np,Npb,NpbOk,CellDivSingle->GetNcells(),CellDivSingle->GetBeginCell(),CellDivSingle->GetCellDomainMin(),Dcellg,Posxyg,Poszg,PsPospressg,Velrhopg,Codeg,Idpg,Viscg/*GRR*/,FtoMasspg,SpsTaug,SpsGradvelg,ViscDtg,Arg,Aceg,Aviscg/*GRR*/,Deltag,TShifting,ShiftPosg,ShiftDetectg,Simulate2D,NULL,BsAuto);
     PreInteractionVars_Forces(tinter,Np,Npb);
     BsAuto->ProcessTimes(TimeStep,Nstep);
     bsfluid=BlockSizes.forcesfluid=BsAuto->GetKernel(0)->GetOptimumBs();
@@ -404,10 +422,10 @@ void JSphGpuSingle::Interaction_Forces(TpInter tinter){
   }
 
   //-Interaction Fluid-Fluid/Bound & Bound-Fluid.
-  cusph::Interaction_Forces(Psingle,TKernel,WithFloating,UseDEM,lamsps,TDeltaSph,CellMode,Visco*ViscoBoundFactor,Visco,bsbound,bsfluid,Np,Npb,NpbOk,CellDivSingle->GetNcells(),CellDivSingle->GetBeginCell(),CellDivSingle->GetCellDomainMin(),Dcellg,Posxyg,Poszg,PsPospressg,Velrhopg,Codeg,Idpg,FtoMasspg,SpsTaug,SpsGradvelg,ViscDtg,Arg,Aceg,Deltag,TShifting,ShiftPosg,ShiftDetectg,Simulate2D,NULL,NULL);
+  cusph::Interaction_Forces(Psingle,TKernel,WithFloating,UseDEM,lamsps,TDeltaSph,CellMode,Visco*ViscoBoundFactor,Visco,bsbound,bsfluid,Np,Npb,NpbOk,CellDivSingle->GetNcells(),CellDivSingle->GetBeginCell(),CellDivSingle->GetCellDomainMin(),Dcellg,Posxyg,Poszg,PsPospressg,Velrhopg,Codeg,Idpg,Viscg/*GRR*/,FtoMasspg,SpsTaug,SpsGradvelg,ViscDtg,Arg,Aceg,Aviscg/*GRR*/,Deltag,TShifting,ShiftPosg,ShiftDetectg,Simulate2D,NULL,NULL);
 
   //-Interaction DEM Floating-Bound & Floating-Floating. //(DEM)
-  if(UseDEM)cusph::Interaction_ForcesDem(Psingle,CellMode,BlockSizes.forcesdem,CaseNfloat,CellDivSingle->GetNcells(),CellDivSingle->GetBeginCell(),CellDivSingle->GetCellDomainMin(),Dcellg,FtRidpg,DemDatag,float(DemDtForce),Posxyg,Poszg,PsPospressg,Velrhopg,Codeg,Idpg,ViscDtg,Aceg,NULL);
+  if(UseDEM)cusph::Interaction_ForcesDem(Psingle,CellMode,BlockSizes.forcesdem,CaseNfloat,CellDivSingle->GetNcells(),CellDivSingle->GetBeginCell(),CellDivSingle->GetCellDomainMin(),Dcellg,FtRidpg,DemDatag,float(DemDtForce),Posxyg,Poszg,PsPospressg,Velrhopg,Viscg/*GRR*/,Codeg,Idpg,ViscDtg,Aceg,Aviscg/*GRR*/,NULL);
 
   //-For 2D simulations always overrides the 2nd component (Y axis).
   //-Para simulaciones 2D anula siempre la 2º componente.
@@ -668,7 +686,7 @@ void JSphGpuSingle::SaveData(){
   }
   //-Stores particle data. | Graba datos de particulas.
   const tdouble3 vdom[2]={OrderDecode(CellDivSingle->GetDomainLimits(true)),OrderDecode(CellDivSingle->GetDomainLimits(false))};
-  JSph::SaveData(npsave,Idp,AuxPos,AuxVel,AuxRhop,1,vdom,&infoplus);
+  JSph::SaveData(npsave,Idp,AuxPos,AuxVel,AuxRhop,AuxVisc/*GRR*/,1,vdom,&infoplus);
   TmgStop(Timers,TMG_SuSavePart);
 }
 

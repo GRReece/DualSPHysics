@@ -143,6 +143,16 @@ typecode JSphMk::GetCodeById(unsigned id)const{
 }
 
 //==============================================================================
+/// Returns Mk of particle according to a given Id.			/*GRR*/
+//==============================================================================
+typecode JSphMk::GetMkById(unsigned id)const{
+  const char met[]="GetMkById";
+  const unsigned cmk=GetMkBlockById(id);
+  if(cmk>=Size())RunException(met,fun::PrintStr("Mk block of particle (idp=%u) was not found.",id));
+  return(MkList[cmk]->Mk);
+}
+
+//==============================================================================
 /// Returns the block in MkList according to a given MK.
 //==============================================================================
 unsigned JSphMk::GetMkBlockByMk(word mk)const{

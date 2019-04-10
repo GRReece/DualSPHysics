@@ -102,6 +102,8 @@ public:
   inline unsigned GetMkBlockById(unsigned id)const;
   typecode GetCodeById(unsigned id)const;
 
+  typecode GetMkById(unsigned id) const;	/*GRR*/
+
   word GetMkBoundFirst()const{ return(MkBoundFirst); }
   word GetMkFluidFirst()const{ return(MkFluidFirst); }
 
